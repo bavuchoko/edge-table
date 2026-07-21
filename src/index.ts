@@ -2,6 +2,7 @@
 import './components/EdgeTable/EdgeTable.css'
 
 export { EdgeTable, type EdgeTableProps } from './components/EdgeTable/EdgeTable'
+export { EdgeTableEmpty, type EdgeTableEmptyProps } from './components/EdgeTable/EdgeTableEmpty'
 export {
   ADD_COLUMN_WIDTH,
   COLUMN_MAX_WIDTH,

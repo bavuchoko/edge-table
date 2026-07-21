@@ -1,22 +1,46 @@
 .edge-table-shell {
+  display: flex;
+  flex-direction: column;
   width: 100%;
+  min-height: 0;
   background: #fff;
-  /*border: 1px solid #e3e4e8;*/
-  /*border-radius: 2px;*/
+}
+
+/*
+ * 높이 계약
+ * - maxHeight 있음: 스크롤 영역을 그 px로 고정
+ * - 없음: 부모를 넘치지 않는 최대 높이로 채움 (부모에 높이/ flex 필요)
+ */
+.edge-table-shell:not(.is-max-height) {
+  flex: 1 1 auto;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.edge-table-shell.is-max-height {
+  flex: 0 0 auto;
+  height: auto;
+  max-height: none;
+  align-self: flex-start;
+  width: 100%;
 }
 
 .edge-table-scroll {
+  flex: 1 1 auto;
   width: 100%;
+  min-height: 0;
   overflow-x: auto;
-  overflow-y: visible;
+  overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: #c9ccd4 transparent;
 }
 
-/* maxHeight 지정: thead sticky 고정 + 본문 세로 스크롤(가상 리스트) */
+/* 명시 높이: 스크롤 뷰포트 고정 */
 .edge-table-scroll.is-max-height {
+  flex: 0 0 auto;
+  height: var(--edge-table-max-height);
   max-height: var(--edge-table-max-height);
-  overflow-y: auto;
 }
 
 .edge-table-scroll::-webkit-scrollbar {
@@ -71,19 +95,19 @@
   box-shadow: none;
 }
 
-/* maxHeight 모드에서만 세로 스크롤 시 th 고정 */
-.edge-table-scroll.is-max-height thead {
+/* 세로 스크롤 시 th 고정 (부모 채움 / maxHeight 공통) */
+.edge-table-scroll thead {
   position: sticky;
   top: 0;
   z-index: 3;
 }
 
-.edge-table-scroll.is-max-height thead th {
+.edge-table-scroll thead th {
   top: 0;
   background: #fff;
 }
 
-.edge-table-scroll.is-max-height thead .edge-table__th.is-frozen {
+.edge-table-scroll thead .edge-table__th.is-frozen {
   background: rgb(219, 234, 254);
 }
 
@@ -645,6 +669,7 @@
 
 .edge-pagination {
   display: flex;
+  flex: 0 0 auto;
   flex-direction: column;
   align-items: flex-start;
   gap: 10px;
@@ -748,4 +773,96 @@
 .edge-pagination__last:disabled {
   color: #b0b4bf;
   cursor: default;
+}
+
+/* 데이터 없음 — 왼쪽 일러스트 + 오른쪽 문구 */
+.edge-table-empty {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 32px 48px;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 40px 28px;
+  background: #fff;
+}
+
+.edge-table-empty__art {
+  display: block;
+  width: min(420px, 58vw);
+  max-height: min(420px, 65%);
+  height: auto;
+  margin: 0;
+  flex: 0 0 auto;
+  object-fit: contain;
+  user-select: none;
+  pointer-events: none;
+}
+
+.edge-table-empty__copy {
+  flex: 0 1 auto;
+  max-width: min(28rem, 100%);
+  min-width: 0;
+  text-align: left;
+}
+
+.edge-table-empty__title {
+  margin: 0 0 10px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #1f2329;
+  letter-spacing: -0.01em;
+}
+
+.edge-table-empty__desc {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #6c707e;
+}
+
+.edge-table-empty__suggestions {
+  margin: 10px 0 0;
+  padding: 0 0 0 1.2em;
+  font-size: 13px;
+  line-height: 1.65;
+  color: #4b5563;
+}
+
+.edge-table-empty__suggestions li {
+  margin: 0;
+}
+
+.edge-table-empty__suggestions li + li {
+  margin-top: 2px;
+}
+
+@media (max-width: 640px) {
+  .edge-table-empty {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .edge-table-empty__copy {
+    text-align: center;
+  }
+
+  .edge-table-empty__title {
+    font-size: 15px;
+  }
+
+  .edge-table-empty__desc,
+  .edge-table-empty__suggestions {
+    font-size: 13px;
+  }
+
+  .edge-table-empty__suggestions {
+    display: inline-block;
+    text-align: left;
+  }
 }

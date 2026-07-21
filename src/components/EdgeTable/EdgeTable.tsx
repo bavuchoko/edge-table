@@ -16,7 +16,7 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import {
   ADD_COLUMN_WIDTH,
   COLUMN_MIN_WIDTH,
@@ -30,6 +30,7 @@ import { applyHeaderState, toHeaderState } from '../../headerState'
 import type { ColumnDef, ColumnKey, HeaderState, PageResponse, Pageable } from '../../types'
 import { AddColumnMenu } from './AddColumnMenu'
 import { ColumnHeader } from './ColumnHeader'
+import { EdgeTableEmpty, renderEdgeTableEmpty, type EdgeTableEmptyProps } from './EdgeTableEmpty'
 import {
   computeDataColumnLeftOffsets,
   getFreezeStickyStyle,
@@ -75,11 +76,13 @@ export type EdgeTableProps<T> = {
   /** 저장된 헤더 상태(로드 시 순서/visible/width 복원) */
   initialHeaders?: HeaderState[] | null
   /**
-   * 테이블 영역 최대 높이(px).
-   * - 없음: 행 수만큼 높이 증가 (세로 스크롤 없음)
-   * - 있음: 그 높이 안에서 thead 고정 + tbody(가상) 세로 스크롤
+   * 테이블 스크롤 영역 높이(px).
+   * - 있음: 그 높이로 고정 (thead sticky + 본문 스크롤)
+   * - 없음: 부모를 overflow 하지 않는 최대 높이로 채움 (부모에 높이 또는 flex 필요)
    */
   maxHeight?: number
+  /** content가 비었을 때 empty 영역 커스텀 (제목/설명/이미지 또는 children) */
+  empty?: EdgeTableEmptyProps | ReactNode
 }
 
 function parseSort(pageable?: PageResponse<unknown>['pageable'] | Pageable): {
@@ -134,8 +137,10 @@ export function EdgeTable<T>({
   onHeaderReset,
   initialHeaders = null,
   maxHeight,
+  empty,
 }: EdgeTableProps<T>) {
   const isHeightCapped = maxHeight != null && maxHeight > 0
+  const isEmpty = (data.content?.length ?? 0) === 0
   const fallbackVisibleKeys = defaultVisibleKeys ?? catalog.map((col) => col.key)
   const scrollRef = useRef<HTMLDivElement>(null)
   const [viewportWidth, setViewportWidth] = useState(0)
@@ -444,8 +449,19 @@ export function EdgeTable<T>({
     return <DefaultCellContent value={display} />
   }
 
+  const scrollStyle = isHeightCapped
+    ? ({ '--edge-table-max-height': `${maxHeight}px` } as CSSProperties)
+    : undefined
+
   return (
-    <div className={`edge-table-shell${altHeld ? ' is-alt-held' : ''}`}>
+    <div
+      className={`edge-table-shell${altHeld ? ' is-alt-held' : ''}${isHeightCapped ? ' is-max-height' : ''}`}
+    >
+      {isEmpty ? (
+        <div className={`edge-table-scroll${isHeightCapped ? ' is-max-height' : ''}`} style={scrollStyle}>
+          {renderEdgeTableEmpty(empty)}
+        </div>
+      ) : (
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -456,11 +472,7 @@ export function EdgeTable<T>({
         <div
           ref={scrollRef}
           className={`edge-table-scroll${isHeightCapped ? ' is-max-height' : ''}`}
-          style={
-            isHeightCapped
-              ? ({ '--edge-table-max-height': `${maxHeight}px` } as CSSProperties)
-              : undefined
-          }
+          style={scrollStyle}
         >
           <table
             className="edge-table"
@@ -615,8 +627,11 @@ export function EdgeTable<T>({
           ) : null}
         </DragOverlay>
       </DndContext>
+      )}
 
-      <Pagination page={page} totalPages={totalPages} onChange={handlePageChange} />
+      {!isEmpty ? (
+        <Pagination page={page} totalPages={totalPages} onChange={handlePageChange} />
+      ) : null}
     </div>
   )
 }

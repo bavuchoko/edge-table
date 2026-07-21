@@ -1,6 +1,6 @@
 {
   "name": "@bavuchoko/edge-table",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "YouTrack-style React data table with column DnD, freeze, virtual rows, and Spring Pageable",
   "type": "module",
   "main": "./dist/index.js",
