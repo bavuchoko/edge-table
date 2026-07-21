@@ -7,11 +7,16 @@
 
 .edge-table-scroll {
   width: 100%;
-  padding-top: 4px;
   overflow-x: auto;
   overflow-y: visible;
   scrollbar-width: thin;
   scrollbar-color: #c9ccd4 transparent;
+}
+
+/* maxHeight 지정: thead sticky 고정 + 본문 세로 스크롤(가상 리스트) */
+.edge-table-scroll.is-max-height {
+  max-height: var(--edge-table-max-height);
+  overflow-y: auto;
 }
 
 .edge-table-scroll::-webkit-scrollbar {
@@ -61,13 +66,26 @@
 
 .edge-table thead {
   background: #fff;
+}
+
+.edge-table thead tr {
+  box-shadow: none;
+}
+
+/* maxHeight 모드에서만 세로 스크롤 시 th 고정 */
+.edge-table-scroll.is-max-height thead {
   position: sticky;
   top: 0;
   z-index: 3;
 }
 
-.edge-table thead tr {
-  box-shadow: none;
+.edge-table-scroll.is-max-height thead th {
+  top: 0;
+  background: #fff;
+}
+
+.edge-table-scroll.is-max-height thead .edge-table__th.is-frozen {
+  background: rgb(219, 234, 254);
 }
 
 .edge-table th,
@@ -176,6 +194,7 @@
   z-index: 4;
 }
 
+/* YouTrack: 본문 +열은 투명(데이터 비침). 헤더 +는 흰 배경으로 기본에 th 가림 */
 .edge-table th.edge-table__th--add,
 .edge-table td.edge-table__td--add {
   width: 72px;
@@ -183,15 +202,45 @@
   padding: 0 20px 0 12px;
   position: sticky;
   right: 0;
-  z-index: 2;
-  background: #fff;
   overflow: visible;
   text-overflow: clip;
   border-bottom: 1px solid #e7e8eb;
 }
 
+.edge-table td.edge-table__td--add {
+  z-index: 1;
+  background: transparent;
+  /* 본문만 통과 → 데이터가 + 영역 위로 보이게 */
+  pointer-events: none;
+}
+
 .edge-table thead .edge-table__th--add {
   z-index: 4;
+  background: #fff;
+  /* + 영역은 항상 +가 이벤트 수신 (아래 th로 통과하지 않음) */
+  pointer-events: auto;
+}
+
+/*
+ * 데이터 th: 셀 전체는 pointer-events none → +와 겹친 빈 영역은 +로 통과.
+ * 칩(th-inner)만 auto → 칩 호버 시에만 th가 + 위로 올라감.
+ * Alt 누른 동안만 th 전체 hit → Alt+클릭 틀고정이 셀 전체에서 동작.
+ */
+.edge-table thead .edge-table__th:not(.edge-table__th--add):not(.edge-table__th--check):not(
+    .edge-table__th--star
+  ) {
+  pointer-events: none;
+}
+
+.edge-table-shell.is-alt-held
+  thead
+  .edge-table__th:not(.edge-table__th--add):not(.edge-table__th--check):not(.edge-table__th--star) {
+  pointer-events: auto;
+}
+
+.edge-table thead .edge-table__th:has(.edge-table__th-inner:hover),
+.edge-table thead .edge-table__th.is-dragging {
+  z-index: 5;
 }
 
 /* YouTrack: 칩 폭은 라벨+정렬만. 드래그/휴지통은 absolute라 호버해도 레이아웃 불변 */
@@ -208,6 +257,7 @@
   position: relative;
   box-sizing: border-box;
   z-index: 0;
+  pointer-events: auto;
 }
 
 .edge-table__th:hover .edge-table__th-inner::before,
@@ -331,6 +381,16 @@
   border-bottom: 1px solid #e7e8eb;
 }
 
+/* tanstack virtual spacer — 레이아웃만, 선/배경 없음 */
+.edge-table__virtual-spacer td {
+  height: 0;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  line-height: 0;
+  font-size: 0;
+}
+
 /* 체크/별/추가 열은 ellipsis 제외 */
 .edge-table td.edge-table__td--star,
 .edge-table td.edge-table__td--check,
@@ -357,6 +417,7 @@
 .edge-table td.edge-table__td--add {
   padding: 0 20px 0 12px;
   border-bottom: 1px solid #e7e8eb;
+  z-index: 1;
 }
 
 .edge-table tbody tr:hover > .edge-table__td,
@@ -367,6 +428,26 @@
 .edge-table tbody tr.is-selected > .edge-table__td,
 .edge-table tbody tr.is-selected > .edge-table__td--star {
   background: #ebf3ff;
+}
+
+.edge-table tbody tr:hover > .edge-table__td--add,
+.edge-table tbody tr.is-selected > .edge-table__td--add {
+  background: transparent;
+}
+
+/* react_grid 틀 고정 — Alt+th 클릭 */
+.edge-table__th.is-frozen,
+.edge-table__td.is-frozen {
+  background-color: rgb(219, 234, 254);
+  background-clip: padding-box;
+}
+
+.edge-table tbody tr:hover > .edge-table__td.is-frozen {
+  background-color: #cfe0fc;
+}
+
+.edge-table tbody tr.is-selected > .edge-table__td.is-frozen {
+  background-color: #bfdbfe;
 }
 
 .edge-table input[type='checkbox'] {
@@ -422,6 +503,7 @@
   align-items: center;
   justify-content: center;
   width: 100%;
+  pointer-events: auto;
 }
 
 .add-column__trigger {
@@ -433,9 +515,12 @@
   padding: 0;
   border: 0;
   border-radius: 4px;
-  background: transparent;
+  background: #fff;
   color: #6c707e;
   cursor: pointer;
+  pointer-events: auto;
+  position: relative;
+  z-index: 1;
   transition: color 0.1s ease;
 }
 
@@ -570,7 +655,7 @@
 }
 
 .edge-pagination__text-link.is-accent:not(:disabled) {
-  color: #c2185b;
+  color: #3574f0;
 }
 
 .edge-pagination__text-link:hover:not(:disabled) {

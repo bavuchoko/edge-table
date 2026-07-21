@@ -1,11 +1,14 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { EdgeTable } from './components/EdgeTable/EdgeTable'
 import {
+  ALL_COLUMNS,
   SIMMS_HEADER_WIRE_NOTES,
   fetchAssetPage,
   normalizeHeaderSetting,
   type Asset,
   type AssetPageResponse,
+  type CellRenderArgs,
+  type ColumnDef,
   type HeaderState,
   type Pageable,
 } from './data/dummydata'
@@ -23,10 +26,43 @@ function loadStoredHeaders(): HeaderState[] | null {
   }
 }
 
+/** react_grid Header.render 데모 — 자산코드를 링크로 */
+function renderAssetCode({ value, stopRowClick }: CellRenderArgs) {
+  const text = value == null ? '' : String(value)
+  if (!text.trim()) return null
+  return (
+    <button
+      type="button"
+      className="edge-table__mono"
+      style={{
+        padding: 0,
+        border: 0,
+        background: 'transparent',
+        cursor: 'pointer',
+        font: 'inherit',
+      }}
+      onClick={(e) => {
+        stopRowClick(e)
+        console.log('assetCode click', text)
+      }}
+    >
+      {text}
+    </button>
+  )
+}
+
 function App() {
   const [headers, setHeaders] = useState<HeaderState[] | null>(() => loadStoredHeaders())
   /** 실제 서비스에서는 API 응답. 여기선 fetchAssetPage로 서버 페이징/정렬을 흉내 냄 */
   const [pageData, setPageData] = useState<AssetPageResponse>(() => fetchAssetPage({ pageNumber: 0 }))
+
+  const columns = useMemo<ColumnDef[]>(
+    () =>
+      ALL_COLUMNS.map((col) =>
+        col.key === 'assetCode' ? { ...col, render: renderAssetCode } : col,
+      ),
+    [],
+  )
 
   const handleStarClick = (row: Asset, starred: boolean) => {
     console.log('onStarClick', { starred, row })
@@ -63,11 +99,13 @@ function App() {
       <header className="app__header">
         <h1>자산 목록</h1>
         <p>
-          + 칼럼 추가 · 정렬/페이지는 onPageChange(pageable) · 헤더 저장(localStorage)
+          maxHeight 시 th 고정·본문 스크롤 · Alt+헤더 틀고정 · render · onPageChange
         </p>
       </header>
       <EdgeTable
         showStar
+        maxHeight={480}
+        columns={columns}
         data={pageData}
         initialHeaders={headers}
         onPageChange={handlePageChange}

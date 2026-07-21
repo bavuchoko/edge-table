@@ -1,6 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, MouseEvent } from 'react'
 import type { ColumnDef, ColumnKey } from '../../data/dummydata'
 import { DragHandleIcon, SortIcon, TrashIcon, type SortDirection } from './icons'
 
@@ -10,6 +10,11 @@ type ColumnHeaderProps = {
   canRemove: boolean
   sortDirection?: SortDirection | null
   onSort?: (columnKey: ColumnKey) => void
+  /** react_grid: Alt+클릭 시 해당 칼럼까지 틀 고정 토글 (th 전체 영역) */
+  onFreeze?: (columnKey: ColumnKey) => void
+  stickyStyle?: CSSProperties
+  isFrozen?: boolean
+  isFreezeEdge?: boolean
 }
 
 export function ColumnHeader({
@@ -18,6 +23,10 @@ export function ColumnHeader({
   canRemove,
   sortDirection = null,
   onSort,
+  onFreeze,
+  stickyStyle,
+  isFrozen = false,
+  isFreezeEdge = false,
 }: ColumnHeaderProps) {
   const {
     attributes,
@@ -33,24 +42,34 @@ export function ColumnHeader({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.55 : undefined,
-    zIndex: isDragging ? 2 : undefined,
-    position: 'relative',
     width: column.width,
     minWidth: column.width,
     maxWidth: column.width,
+    ...stickyStyle,
+    zIndex: isDragging ? 6 : stickyStyle?.zIndex,
+    position: stickyStyle?.position ?? 'relative',
   }
 
   const isSorted = Boolean(sortDirection)
+
+  const handleThClick = (event: MouseEvent<HTMLTableCellElement>) => {
+    if (!event.altKey || !onFreeze) return
+    event.preventDefault()
+    onFreeze(column.key)
+  }
 
   return (
     <th
       ref={setNodeRef}
       style={style}
-      className={`edge-table__th${isDragging ? ' is-dragging' : ''}${isSorted ? ' is-sorted' : ''}`}
+      className={`edge-table__th${isDragging ? ' is-dragging' : ''}${isSorted ? ' is-sorted' : ''}${
+        isFrozen ? ' is-frozen' : ''
+      }${isFreezeEdge ? ' is-freeze-edge' : ''}`}
       scope="col"
       aria-sort={
         sortDirection === 'asc' ? 'ascending' : sortDirection === 'desc' ? 'descending' : 'none'
       }
+      onClick={handleThClick}
     >
       <div className="edge-table__th-inner">
         <button
@@ -67,7 +86,12 @@ export function ColumnHeader({
         <button
           type="button"
           className="edge-table__th-label"
-          onClick={() => onSort?.(column.key)}
+          onClick={(event) => {
+            // Alt+클릭은 th에서 처리 (버블)
+            if (event.altKey) return
+            event.stopPropagation()
+            onSort?.(column.key)
+          }}
           onPointerDown={(event) => event.stopPropagation()}
         >
           {column.label}

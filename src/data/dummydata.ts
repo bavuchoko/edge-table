@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+
 export type AssetUser = {
   id: number
   name: string | null
@@ -82,12 +84,25 @@ export type AssetPageResponse = {
 
 export type ColumnKey = string
 
+/** react_grid `GridCellRenderArgs`와 동일 계약 */
+export type CellRenderArgs = {
+  row: unknown
+  value: unknown
+  columnKey: string
+  rowIndex: number
+  stopRowClick: (e: unknown) => void
+}
+
+export type CellRender = ReactNode | ((args: CellRenderArgs) => ReactNode)
+
 export type ColumnDef = {
   key: ColumnKey
   label: string
   type: 'text' | string
   width: number
   filterable?: boolean
+  /** react_grid `Header.render` — 함수 또는 ReactNode(element면 props 주입) */
+  render?: CellRender
 }
 
 /** react_grid `HeaderState`와 동일 형태 — 칼럼 표시/순서 저장용 */

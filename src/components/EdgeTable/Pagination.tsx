@@ -32,7 +32,7 @@ export function Pagination({ page, totalPages, onChange }: PaginationProps) {
       <div className="edge-pagination__nav">
         <button
           type="button"
-          className="edge-pagination__text-link"
+          className="edge-pagination__text-link is-accent"
           disabled={isFirst}
           onClick={() => onChange(page - 1)}
         >
