@@ -1,0 +1,24 @@
+.app {
+  width: min(1280px, 100%);
+  margin: 0 auto;
+  padding: 32px 24px 48px;
+}
+
+.app__header {
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.app__header h1 {
+  margin: 0 0 6px;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #27282e;
+}
+
+.app__header p {
+  margin: 0;
+  font-size: 13px;
+  color: #6c707e;
+}
