@@ -1,6 +1,7 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { CSSProperties, MouseEvent } from 'react'
+import { COLUMN_MIN_WIDTH, columnSizeStyle } from '../../columnWidth'
 import type { ColumnDef, ColumnKey } from '../../types'
 import { DragHandleIcon, SortIcon, TrashIcon, type SortDirection } from './icons'
 
@@ -42,9 +43,7 @@ export function ColumnHeader({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.55 : undefined,
-    width: column.width,
-    minWidth: column.width,
-    maxWidth: column.width,
+    ...columnSizeStyle(column.width ?? COLUMN_MIN_WIDTH),
     ...stickyStyle,
     zIndex: isDragging ? 6 : stickyStyle?.zIndex,
     position: stickyStyle?.position ?? 'relative',

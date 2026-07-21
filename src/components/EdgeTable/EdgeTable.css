@@ -48,8 +48,7 @@
 }
 
 .edge-table {
-  width: max-content;
-  min-width: 100%;
+  /* 폭은 JS(resolveTableLayout)가 px로 지정 — %/max-content 쓰면 무한 확장됨 */
   border-collapse: separate;
   border-spacing: 0;
   table-layout: fixed;
@@ -194,11 +193,19 @@
   z-index: 4;
 }
 
+/* gap 폭은 inline px (width:100% 금지 — 테이블 무한 확장 원인) */
+.edge-table th.edge-table__th--gap,
+.edge-table td.edge-table__td--gap {
+  padding: 0;
+  border-bottom: 1px solid #e7e8eb;
+}
+
 /* YouTrack: 본문 +열은 투명(데이터 비침). 헤더 +는 흰 배경으로 기본에 th 가림 */
 .edge-table th.edge-table__th--add,
 .edge-table td.edge-table__td--add {
   width: 72px;
   min-width: 72px;
+  max-width: 72px;
   padding: 0 20px 0 12px;
   position: sticky;
   right: 0;
@@ -435,6 +442,14 @@
   background: transparent;
 }
 
+.edge-table tbody tr:hover > .edge-table__td--gap {
+  background: #f5f9ff;
+}
+
+.edge-table tbody tr.is-selected > .edge-table__td--gap {
+  background: #ebf3ff;
+}
+
 /* react_grid 틀 고정 — Alt+th 클릭 */
 .edge-table__th.is-frozen,
 .edge-table__td.is-frozen {
@@ -501,7 +516,7 @@
   position: relative;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
   width: 100%;
   pointer-events: auto;
 }

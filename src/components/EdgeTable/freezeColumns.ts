@@ -21,7 +21,9 @@ export function computeDataColumnLeftOffsets(
   let acc = stickyBaseLeft(showStar)
   for (let i = 0; i < columns.length; i++) {
     offsets[i] = acc
-    acc += columns[i]?.width ?? 0
+    const w = columns[i]?.width
+    // flex 칼럼은 sticky 합산용 추정폭(범위 중간)
+    acc += w != null && w > 0 ? w : 500
   }
   return offsets
 }

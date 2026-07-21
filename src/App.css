@@ -1,7 +1,6 @@
 .app {
-  width: min(1280px, 100%);
+  width: 100%;
   margin: 0 auto;
-  padding: 32px 24px 48px;
 }
 
 .app__header {

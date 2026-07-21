@@ -17,7 +17,13 @@ export type ColumnDef = {
   key: ColumnKey
   label: string
   type: 'text' | string
-  width: number
+  /** 있으면 고정 폭(130~500 clamp). 없으면 flex로 남는 폭을 나눔 */
+  width?: number
+  /**
+   * flex 칼럼(`width` 없음) 전용 하한.
+   * 뷰포트에 따라 늘어날 때 이 값 이하로는 줄지 않음 (기본 130, 최대 500 안).
+   */
+  minWidth?: number
   filterable?: boolean
   /** react_grid `Header.render` — 함수 또는 ReactNode(element면 props 주입) */
   render?: CellRender

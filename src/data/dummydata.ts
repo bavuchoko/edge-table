@@ -81,7 +81,7 @@ export type AssetPageResponse = PageResponse<Asset> & {
 
 /** 데모용 헤더(칼럼) 정의 */
 export const ALL_COLUMNS: ColumnDef[] = [
-  { key: 'assetName', label: '자산명', type: 'text', width: 200 },
+  { key: 'assetName', label: '자산명', type: 'text', minWidth: 300 },
   { key: 'assetCode', label: '자산코드', type: 'text', width: 120 },
   { key: 'groupName', label: '자산그룹', type: 'text', width: 140 },
   { key: 'taskName', label: '업무그룹', type: 'text', width: 140 },

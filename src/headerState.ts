@@ -1,3 +1,4 @@
+import { clampColumnWidth, hasFixedWidth } from './columnWidth'
 import type { ColumnDef, ColumnKey, HeaderState } from './types'
 
 /** SIMMS 구형 헤더 저장 포맷 (`initHeaderOrders`가 읽던 형태) */
@@ -9,12 +10,25 @@ export type LegacyHeaderSetting = {
 
 export type AppliedHeaderState = {
   visibleKeys: ColumnKey[]
+  /** 고정 폭만 담김 (미지정 칼럼은 키 없음) */
   columnWidths: Record<string, number>
   columns: ColumnDef[]
 }
 
 function widthMapFromColumns(columns: ColumnDef[]): Record<string, number> {
-  return Object.fromEntries(columns.map((col) => [col.key, col.width]))
+  const out: Record<string, number> = {}
+  for (const col of columns) {
+    if (hasFixedWidth(col.width)) out[col.key] = clampColumnWidth(col.width)
+  }
+  return out
+}
+
+function withResolvedWidth(col: ColumnDef, widths: Record<string, number>): ColumnDef {
+  const w = widths[col.key]
+  if (hasFixedWidth(w)) return { ...col, width: clampColumnWidth(w) }
+  if (hasFixedWidth(col.width)) return { ...col, width: clampColumnWidth(col.width) }
+  const { width: _omit, ...rest } = col
+  return rest
 }
 
 /**
@@ -37,10 +51,7 @@ export function applyHeaderState(args: {
     return {
       visibleKeys: fallbackVisibleKeys.filter((key) => byKey.has(key)),
       columnWidths: widths,
-      columns: columns.map((col) => ({
-        ...col,
-        width: widths[col.key] ?? col.width,
-      })),
+      columns: columns.map((col) => withResolvedWidth(col, widths)),
     }
   }
 
@@ -51,8 +62,8 @@ export function applyHeaderState(args: {
     const col = byKey.get(item.key)
     if (!col) continue
     used.add(item.key)
-    if (item.width != null && item.width > 0) {
-      widths[item.key] = Math.round(item.width)
+    if (hasFixedWidth(item.width)) {
+      widths[item.key] = clampColumnWidth(item.width)
     }
     if (item.visible) visibleKeys.push(item.key)
   }
@@ -70,10 +81,7 @@ export function applyHeaderState(args: {
   return {
     visibleKeys,
     columnWidths: widths,
-    columns: columns.map((col) => ({
-      ...col,
-      width: widths[col.key] ?? col.width,
-    })),
+    columns: columns.map((col) => withResolvedWidth(col, widths)),
   }
 }
 
@@ -86,33 +94,30 @@ export function toHeaderState(
   const columnMap = new Map(columns.map((col) => [col.key, col] as const))
   const visibleSet = new Set(visibleKeys)
 
-  const resolveWidth = (key: string, fallback: number) => {
+  const resolveWidth = (key: string, fallback?: number): number | undefined => {
     const w = columnWidths?.[key]
-    if (w != null && w > 0) return Math.round(w)
-    return fallback
+    if (hasFixedWidth(w)) return clampColumnWidth(w)
+    if (hasFixedWidth(fallback)) return clampColumnWidth(fallback)
+    return undefined
+  }
+
+  const toItem = (col: ColumnDef, visible: boolean): HeaderState => {
+    const width = resolveWidth(col.key, col.width)
+    return {
+      key: col.key,
+      label: col.label,
+      visible,
+      ...(width != null ? { width } : {}),
+    }
   }
 
   const visible = visibleKeys.flatMap((key) => {
     const col = columnMap.get(key)
     if (!col) return []
-    return [
-      {
-        key: col.key,
-        label: col.label,
-        visible: true,
-        width: resolveWidth(col.key, col.width),
-      },
-    ]
+    return [toItem(col, true)]
   })
 
-  const hidden = columns
-    .filter((col) => !visibleSet.has(col.key))
-    .map((col) => ({
-      key: col.key,
-      label: col.label,
-      visible: false,
-      width: resolveWidth(col.key, col.width),
-    }))
+  const hidden = columns.filter((col) => !visibleSet.has(col.key)).map((col) => toItem(col, false))
 
   return [...visible, ...hidden]
 }
@@ -149,12 +154,17 @@ export function normalizeHeaderSetting(
     const col = columns.find((item) => item.key === key)
     if (!col) return []
     const width = widths[key]
+    const resolved = hasFixedWidth(width)
+      ? clampColumnWidth(width)
+      : hasFixedWidth(col.width)
+        ? clampColumnWidth(col.width)
+        : undefined
     return [
       {
         key: col.key,
         label: col.label,
         visible: !excluded.has(key),
-        ...(width != null && width > 0 ? { width: Math.round(width) } : { width: col.width }),
+        ...(resolved != null ? { width: resolved } : {}),
       },
     ]
   })
@@ -163,11 +173,16 @@ export function normalizeHeaderSetting(
     .filter((col) => !orderSet.has(col.key))
     .map((col) => {
       const width = widths[col.key]
+      const resolved = hasFixedWidth(width)
+        ? clampColumnWidth(width)
+        : hasFixedWidth(col.width)
+          ? clampColumnWidth(col.width)
+          : undefined
       return {
         key: col.key,
         label: col.label,
         visible: !excluded.has(col.key),
-        ...(width != null && width > 0 ? { width: Math.round(width) } : { width: col.width }),
+        ...(resolved != null ? { width: resolved } : {}),
       }
     })
 

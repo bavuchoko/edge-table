@@ -2,6 +2,18 @@
 import './components/EdgeTable/EdgeTable.css'
 
 export { EdgeTable, type EdgeTableProps } from './components/EdgeTable/EdgeTable'
+export {
+  ADD_COLUMN_WIDTH,
+  COLUMN_MAX_WIDTH,
+  COLUMN_MIN_WIDTH,
+  clampColumnWidth,
+  columnSizeStyle,
+  hasFixedWidth,
+  resolveFlexMinWidth,
+  resolveLayoutColumns,
+  resolveTableLayout,
+  type TableLayoutMetrics,
+} from './columnWidth'
 export { getCellValue } from './getCellValue'
 export {
   applyHeaderState,

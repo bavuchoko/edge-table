@@ -17,6 +17,14 @@ import {
 } from '@dnd-kit/sortable'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import {
+  ADD_COLUMN_WIDTH,
+  COLUMN_MIN_WIDTH,
+  clampColumnWidth,
+  columnSizeStyle,
+  hasFixedWidth,
+  resolveTableLayout,
+} from '../../columnWidth'
 import { getCellValue as defaultGetCellValue } from '../../getCellValue'
 import { applyHeaderState, toHeaderState } from '../../headerState'
 import type { ColumnDef, ColumnKey, HeaderState, PageResponse, Pageable } from '../../types'
@@ -26,6 +34,7 @@ import {
   computeDataColumnLeftOffsets,
   getFreezeStickyStyle,
   resolveFreezeUntilIndex,
+  stickyBaseLeft,
 } from './freezeColumns'
 import { SortIcon, StarIcon, type SortDirection } from './icons'
 import { Pagination } from './Pagination'
@@ -129,6 +138,17 @@ export function EdgeTable<T>({
   const isHeightCapped = maxHeight != null && maxHeight > 0
   const fallbackVisibleKeys = defaultVisibleKeys ?? catalog.map((col) => col.key)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [viewportWidth, setViewportWidth] = useState(0)
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const update = () => setViewportWidth(el.clientWidth)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   const [visibleColumnKeys, setVisibleColumnKeys] = useState<ColumnKey[]>(() =>
     applyHeaderState({
@@ -190,8 +210,15 @@ export function EdgeTable<T>({
   const columnMap = useMemo(() => {
     return new Map(
       catalog.map((col) => {
-        const width = columnWidths[col.key] ?? col.width
-        return [col.key, { ...col, width }] as const
+        const saved = columnWidths[col.key]
+        if (hasFixedWidth(saved)) {
+          return [col.key, { ...col, width: clampColumnWidth(saved) }] as const
+        }
+        if (hasFixedWidth(col.width)) {
+          return [col.key, { ...col, width: clampColumnWidth(col.width) }] as const
+        }
+        const { width: _w, ...rest } = col
+        return [col.key, rest] as const
       }),
     )
   }, [catalog, columnWidths])
@@ -200,9 +227,33 @@ export function EdgeTable<T>({
     .map((key) => columnMap.get(key))
     .filter((col): col is NonNullable<typeof col> => Boolean(col))
 
+  /** gap % 폭은 테이블을 무한 확장시키므로 px로 확정 */
+  const { columns: layoutColumns, gapWidth, tableWidth } = useMemo(
+    () =>
+      resolveTableLayout({
+        columns: visibleColumns,
+        viewportWidth,
+        chromeWidth: stickyBaseLeft(showStar) + ADD_COLUMN_WIDTH,
+      }),
+    [visibleColumns, viewportWidth, showStar],
+  )
+
+  const gapStyle: CSSProperties = {
+    width: gapWidth,
+    minWidth: gapWidth,
+    maxWidth: gapWidth,
+    padding: 0,
+  }
+
   const availableColumns = catalog
     .filter((col) => !visibleColumnKeys.includes(col.key))
-    .map((col) => ({ ...col, width: columnWidths[col.key] ?? col.width }))
+    .map((col) => {
+      const saved = columnWidths[col.key]
+      if (hasFixedWidth(saved)) return { ...col, width: clampColumnWidth(saved) }
+      if (hasFixedWidth(col.width)) return { ...col, width: clampColumnWidth(col.width) }
+      const { width: _w, ...rest } = col
+      return rest
+    })
 
   const freezeUntilIndex = resolveFreezeUntilIndex(freezeUntilKey, visibleColumnKeys)
 
@@ -213,8 +264,8 @@ export function EdgeTable<T>({
   }, [freezeUntilKey, freezeUntilIndex])
 
   const freezeLeftOffsets = useMemo(
-    () => computeDataColumnLeftOffsets(visibleColumns, showStar),
-    [visibleColumns, showStar],
+    () => computeDataColumnLeftOffsets(layoutColumns, showStar),
+    [layoutColumns, showStar],
   )
 
   const handleFreezeColumn = (columnKey: ColumnKey) => {
@@ -242,8 +293,8 @@ export function EdgeTable<T>({
   )
 
   const virtualOverscan = useMemo(
-    () => computeVirtualOverscan(visibleColumns.length),
-    [visibleColumns.length],
+    () => computeVirtualOverscan(layoutColumns.length),
+    [layoutColumns.length],
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- tanstack virtual (same as react_grid)
@@ -268,7 +319,8 @@ export function EdgeTable<T>({
     virtualItems.length > 0
       ? rowVirtualizer.getTotalSize() - virtualItems[virtualItems.length - 1]!.end
       : 0
-  const colSpan = (showStar ? 1 : 0) + 1 + visibleColumns.length + 1
+  /* star? + check + data + gap + add — gap이 500 상한 후 남은 폭 흡수 */
+  const colSpan = (showStar ? 1 : 0) + 1 + layoutColumns.length + 2
 
   const emitPageable = (next: Pageable) => {
     onPageChange?.(next)
@@ -410,7 +462,10 @@ export function EdgeTable<T>({
               : undefined
           }
         >
-          <table className="edge-table">
+          <table
+            className="edge-table"
+            style={{ width: tableWidth, minWidth: tableWidth, maxWidth: tableWidth }}
+          >
             <thead>
               <tr>
                 {showStar ? (
@@ -429,7 +484,7 @@ export function EdgeTable<T>({
                 </th>
 
                 <SortableContext items={visibleColumnKeys} strategy={horizontalListSortingStrategy}>
-                  {visibleColumns.map((column, dataColIndex) => {
+                  {layoutColumns.map((column, dataColIndex) => {
                     const stickyStyle = getFreezeStickyStyle({
                       dataColIndex,
                       freezeUntilIndex,
@@ -452,6 +507,8 @@ export function EdgeTable<T>({
                     )
                   })}
                 </SortableContext>
+
+                <th className="edge-table__th edge-table__th--gap" style={gapStyle} aria-hidden />
 
                 <th className="edge-table__th edge-table__th--add" scope="col">
                   <AddColumnMenu
@@ -507,13 +564,14 @@ export function EdgeTable<T>({
                         aria-label={`${rowLabel} 선택`}
                       />
                     </td>
-                    {visibleColumns.map((column, dataColIndex) => {
+                    {layoutColumns.map((column, dataColIndex) => {
                       const stickyStyle = getFreezeStickyStyle({
                         dataColIndex,
                         freezeUntilIndex,
                         leftOffsets: freezeLeftOffsets,
                         isHeader: false,
                       })
+                      const colWidth = column.width ?? COLUMN_MIN_WIDTH
                       return (
                         <td
                           key={column.key}
@@ -521,9 +579,7 @@ export function EdgeTable<T>({
                             freezeUntilIndex === dataColIndex ? ' is-freeze-edge' : ''
                           }`}
                           style={{
-                            width: column.width,
-                            minWidth: column.width,
-                            maxWidth: column.width,
+                            ...columnSizeStyle(colWidth),
                             ...stickyStyle,
                           }}
                         >
@@ -531,6 +587,7 @@ export function EdgeTable<T>({
                         </td>
                       )
                     })}
+                    <td className="edge-table__td edge-table__td--gap" style={gapStyle} aria-hidden />
                     <td className="edge-table__td edge-table__td--add" />
                   </tr>
                 )
