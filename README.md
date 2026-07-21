@@ -1,32 +1,42 @@
-# React + TypeScript + Vite
+# @bavuchoko/edge-table
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+YouTrack 스타일 React 테이블 — 칼럼 DnD, Alt+클릭 틀고정, 가상 스크롤, Spring `Pageable` 연동.
 
-Currently, two official plugins are available:
+## Install
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm i @bavuchoko/edge-table @dnd-kit/core @dnd-kit/sortable @dnd-kit/utilities @tanstack/react-virtual
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Usage
+
+```tsx
+import { EdgeTable } from '@bavuchoko/edge-table'
+import '@bavuchoko/edge-table/style.css'
+
+<EdgeTable
+  columns={columns}
+  data={page}
+  maxHeight={480}
+  onPageChange={(pageable) => fetchPage(pageable)}
+  onHeaderSave={(headers) => saveHeaders(headers)}
+/>
+```
+
+### Props (요약)
+
+| prop | 설명 |
+|------|------|
+| `columns` | 칼럼 정의 (`render` 지원) |
+| `data` | Spring Page 형태 `{ content, pageable, totalPages, ... }` |
+| `onPageChange` | 정렬/페이지 변경 시 `Pageable` 전달 |
+| `maxHeight` | 있으면 thead 고정 + 본문 스크롤·가상 리스트 |
+| `initialHeaders` / `onHeaderSave` / `onHeaderReset` | 헤더 저장 왕복 |
+
+## Publish
+
+```bash
+npm publish
+```
+
+`prepack` / `prepublishOnly`에서 `build:lib`가 먼저 실행됩니다. (`publishConfig.access: public`)

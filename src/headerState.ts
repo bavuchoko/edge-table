@@ -1,10 +1,4 @@
-import {
-  ALL_COLUMNS,
-  DEFAULT_VISIBLE_COLUMNS,
-  type ColumnDef,
-  type ColumnKey,
-  type HeaderState,
-} from './dummydata'
+import type { ColumnDef, ColumnKey, HeaderState } from './types'
 
 /** SIMMS 구형 헤더 저장 포맷 (`initHeaderOrders`가 읽던 형태) */
 export type LegacyHeaderSetting = {
@@ -19,8 +13,8 @@ export type AppliedHeaderState = {
   columns: ColumnDef[]
 }
 
-function defaultWidthMap(): Record<string, number> {
-  return Object.fromEntries(ALL_COLUMNS.map((col) => [col.key, col.width]))
+function widthMapFromColumns(columns: ColumnDef[]): Record<string, number> {
+  return Object.fromEntries(columns.map((col) => [col.key, col.width]))
 }
 
 /**
@@ -28,15 +22,16 @@ function defaultWidthMap(): Record<string, number> {
  * react_grid `applyHeaderStateToHeader`와 달리 `visible`도 반영한다.
  */
 export function applyHeaderState(args: {
-  columns?: ColumnDef[]
+  columns: ColumnDef[]
   state?: HeaderState[] | null
   fallbackVisibleKeys?: ColumnKey[]
 }): AppliedHeaderState {
-  const columns = args.columns ?? ALL_COLUMNS
-  const fallbackVisibleKeys = args.fallbackVisibleKeys ?? DEFAULT_VISIBLE_COLUMNS
+  const { columns } = args
+  const fallbackVisibleKeys =
+    args.fallbackVisibleKeys ?? columns.filter((c) => c).map((c) => c.key)
   const state = args.state
   const byKey = new Map(columns.map((col) => [col.key, col] as const))
-  const widths = defaultWidthMap()
+  const widths = widthMapFromColumns(columns)
 
   if (!state?.length) {
     return {
@@ -62,7 +57,6 @@ export function applyHeaderState(args: {
     if (item.visible) visibleKeys.push(item.key)
   }
 
-  // state에 없는 칼럼은 기본 가시성(fallback) 유지하며 뒤에 붙임
   for (const key of fallbackVisibleKeys) {
     if (used.has(key) || !byKey.has(key)) continue
     visibleKeys.push(key)
@@ -86,8 +80,8 @@ export function applyHeaderState(args: {
 /** 보이는 칼럼 순서 + 숨김 칼럼 → react_grid형 HeaderState[] */
 export function toHeaderState(
   visibleKeys: ColumnKey[],
+  columns: ColumnDef[],
   columnWidths?: Record<string, number>,
-  columns: ColumnDef[] = ALL_COLUMNS,
 ): HeaderState[] {
   const columnMap = new Map(columns.map((col) => [col.key, col] as const))
   const visibleSet = new Set(visibleKeys)
@@ -129,19 +123,14 @@ export function toHeaderState(
  */
 export function normalizeHeaderSetting(
   raw: unknown,
-  columns: ColumnDef[] = ALL_COLUMNS,
+  columns: ColumnDef[],
 ): HeaderState[] | null {
   if (raw == null) return null
 
   if (Array.isArray(raw)) {
     if (raw.length === 0) return []
     const first = raw[0]
-    if (
-      first &&
-      typeof first === 'object' &&
-      'key' in first &&
-      'visible' in first
-    ) {
+    if (first && typeof first === 'object' && 'key' in first && 'visible' in first) {
       return raw as HeaderState[]
     }
     return null
@@ -152,9 +141,7 @@ export function normalizeHeaderSetting(
   if (!legacy.orders && !legacy.excluded && !legacy.widths) return null
 
   const excluded = new Set(legacy.excluded ?? [])
-  const orders = legacy.orders?.length
-    ? legacy.orders
-    : columns.map((col) => col.key)
+  const orders = legacy.orders?.length ? legacy.orders : columns.map((col) => col.key)
   const orderSet = new Set(orders)
   const widths = legacy.widths ?? {}
 
@@ -190,11 +177,11 @@ export function normalizeHeaderSetting(
 /**
  * SIMMS 페이지 이식 시:
  * - 저장: `setIndividualSetting({ headers: { asset: headerState[] } })`
- * - 로드: `normalizeHeaderSetting(JSON.parse(setting.headers)?.asset)` 후 `initialHeaders`로 전달
+ * - 로드: `normalizeHeaderSetting(JSON.parse(setting.headers)?.asset, columns)` 후 `initialHeaders`로 전달
  */
 export const SIMMS_HEADER_WIRE_NOTES = {
   saveExample: `onHeaderSave={(v) => setIndividualSetting({ headers: { asset: v } })}`,
   resetExample: `onHeaderReset={() => resetIndividualSetting('headers', 'asset')}`,
   loadExample: `const raw = JSON.parse(r.data.headers)?.asset
-const initialHeaders = normalizeHeaderSetting(raw) ?? undefined`,
+const initialHeaders = normalizeHeaderSetting(raw, columns) ?? undefined`,
 } as const

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { ColumnDef, ColumnKey } from '../../data/dummydata'
+import type { ColumnDef, ColumnKey } from '../../types'
 import { PlusIcon, SearchIcon } from './icons'
 
 type AddColumnMenuProps = {

@@ -1,7 +1,7 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { CSSProperties, MouseEvent } from 'react'
-import type { ColumnDef, ColumnKey } from '../../data/dummydata'
+import type { ColumnDef, ColumnKey } from '../../types'
 import { DragHandleIcon, SortIcon, TrashIcon, type SortDirection } from './icons'
 
 type ColumnHeaderProps = {

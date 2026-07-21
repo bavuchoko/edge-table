@@ -1,5 +1,5 @@
 import { cloneElement, isValidElement, type ReactElement, type ReactNode } from 'react'
-import type { CellRender, CellRenderArgs } from '../../data/dummydata'
+import type { CellRender, CellRenderArgs } from '../../types'
 
 export function stopRowClick(e: unknown) {
   const event = e as { stopPropagation?: () => void } | null

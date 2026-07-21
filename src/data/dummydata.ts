@@ -1,4 +1,14 @@
-import type { ReactNode } from 'react'
+import type { ColumnDef, ColumnKey, PageResponse, Pageable } from '../types'
+
+export type {
+  CellRender,
+  CellRenderArgs,
+  ColumnDef,
+  ColumnKey,
+  HeaderState,
+  Pageable,
+  PageResponse,
+} from '../types'
 
 export type AssetUser = {
   id: number
@@ -50,27 +60,14 @@ export type Asset = {
   removed: boolean
 }
 
-/** jsGrid / Spring Pageable 과 동일한 요청·상태 형태 */
-export type Pageable = {
-  pageNumber?: number
-  size?: number
-  pageSize?: number
-  sort?: string[]
-  desc?: string | boolean
-  totalElements?: number
-  totalPages?: number
-  sortDirection?: 'ASC' | 'DESC'
-}
-
-export type AssetPageResponse = {
+export type AssetPageResponse = PageResponse<Asset> & {
   content: Asset[]
-  pageable: {
+  pageable: NonNullable<PageResponse<Asset>['pageable']> & {
     pageNumber: number
     pageSize: number
     offset: number
     paged: boolean
     unpaged: boolean
-    sort?: string[]
   }
   totalPages: number
   totalElements: number
@@ -82,38 +79,7 @@ export type AssetPageResponse = {
   empty: boolean
 }
 
-export type ColumnKey = string
-
-/** react_grid `GridCellRenderArgs`와 동일 계약 */
-export type CellRenderArgs = {
-  row: unknown
-  value: unknown
-  columnKey: string
-  rowIndex: number
-  stopRowClick: (e: unknown) => void
-}
-
-export type CellRender = ReactNode | ((args: CellRenderArgs) => ReactNode)
-
-export type ColumnDef = {
-  key: ColumnKey
-  label: string
-  type: 'text' | string
-  width: number
-  filterable?: boolean
-  /** react_grid `Header.render` — 함수 또는 ReactNode(element면 props 주입) */
-  render?: CellRender
-}
-
-/** react_grid `HeaderState`와 동일 형태 — 칼럼 표시/순서 저장용 */
-export type HeaderState = {
-  key: string
-  label: string
-  visible: boolean
-  width?: number
-}
-
-/** API에서 내려오는 헤더(칼럼) 정의 */
+/** 데모용 헤더(칼럼) 정의 */
 export const ALL_COLUMNS: ColumnDef[] = [
   { key: 'assetName', label: '자산명', type: 'text', width: 200 },
   { key: 'assetCode', label: '자산코드', type: 'text', width: 120 },
@@ -154,7 +120,7 @@ export {
   SIMMS_HEADER_WIRE_NOTES,
   type AppliedHeaderState,
   type LegacyHeaderSetting,
-} from './headerState'
+} from '../headerState'
 
 export function formatUsers(users: AssetUser[] | null | undefined): string {
   if (!users?.length) return ''

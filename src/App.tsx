@@ -2,8 +2,10 @@ import { useCallback, useMemo, useState } from 'react'
 import { EdgeTable } from './components/EdgeTable/EdgeTable'
 import {
   ALL_COLUMNS,
+  DEFAULT_VISIBLE_COLUMNS,
   SIMMS_HEADER_WIRE_NOTES,
   fetchAssetPage,
+  getCellValue,
   normalizeHeaderSetting,
   type Asset,
   type AssetPageResponse,
@@ -16,11 +18,11 @@ import './App.css'
 
 const HEADER_STORAGE_KEY = 'edge-table.headers.asset'
 
-function loadStoredHeaders(): HeaderState[] | null {
+function loadStoredHeaders(columns: ColumnDef[]): HeaderState[] | null {
   try {
     const raw = localStorage.getItem(HEADER_STORAGE_KEY)
     if (!raw) return null
-    return normalizeHeaderSetting(JSON.parse(raw))
+    return normalizeHeaderSetting(JSON.parse(raw), columns)
   } catch {
     return null
   }
@@ -52,17 +54,37 @@ function renderAssetCode({ value, stopRowClick }: CellRenderArgs) {
 }
 
 function App() {
-  const [headers, setHeaders] = useState<HeaderState[] | null>(() => loadStoredHeaders())
-  /** 실제 서비스에서는 API 응답. 여기선 fetchAssetPage로 서버 페이징/정렬을 흉내 냄 */
-  const [pageData, setPageData] = useState<AssetPageResponse>(() => fetchAssetPage({ pageNumber: 0 }))
-
   const columns = useMemo<ColumnDef[]>(
     () =>
-      ALL_COLUMNS.map((col) =>
-        col.key === 'assetCode' ? { ...col, render: renderAssetCode } : col,
-      ),
+      ALL_COLUMNS.map((col) => {
+        if (col.key === 'assetCode') return { ...col, render: renderAssetCode }
+        if (col.key === 'assetName') {
+          return {
+            ...col,
+            render: ({ value }: CellRenderArgs) => {
+              const text = value == null ? '' : String(value)
+              if (!text.trim()) return null
+              return <span className="edge-table__name">{text}</span>
+            },
+          }
+        }
+        if (col.key === 'operator' || col.key === 'handler') {
+          return {
+            ...col,
+            render: ({ value }: CellRenderArgs) => {
+              const text = value == null ? '' : String(value)
+              if (!text.trim()) return null
+              return <span className="edge-table__people">{text}</span>
+            },
+          }
+        }
+        return col
+      }),
     [],
   )
+
+  const [headers, setHeaders] = useState<HeaderState[] | null>(() => loadStoredHeaders(ALL_COLUMNS))
+  const [pageData, setPageData] = useState<AssetPageResponse>(() => fetchAssetPage({ pageNumber: 0 }))
 
   const handleStarClick = (row: Asset, starred: boolean) => {
     console.log('onStarClick', { starred, row })
@@ -72,11 +94,6 @@ function App() {
     console.log('onSelectionChange', rows)
   }
 
-  /**
-   * jsGrid / SIMMS30:
-   * onPageChange={handleGridPageChange}
-   * → parseJsGridPageable → fetchData(search, pageNumber, size, sort, desc)
-   */
   const handlePageChange = useCallback((pageable: Pageable) => {
     console.log('onPageChange', pageable)
     setPageData(fetchAssetPage(pageable))
@@ -102,11 +119,13 @@ function App() {
           maxHeight 시 th 고정·본문 스크롤 · Alt+헤더 틀고정 · render · onPageChange
         </p>
       </header>
-      <EdgeTable
+      <EdgeTable<Asset>
         showStar
         maxHeight={480}
         columns={columns}
         data={pageData}
+        defaultVisibleKeys={DEFAULT_VISIBLE_COLUMNS}
+        getCellValue={getCellValue}
         initialHeaders={headers}
         onPageChange={handlePageChange}
         onStarClick={handleStarClick}

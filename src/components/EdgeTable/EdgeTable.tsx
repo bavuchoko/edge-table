@@ -17,19 +17,9 @@ import {
 } from '@dnd-kit/sortable'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import {
-  ALL_COLUMNS,
-  DEFAULT_VISIBLE_COLUMNS,
-  applyHeaderState,
-  getCellValue,
-  toHeaderState,
-  type Asset,
-  type AssetPageResponse,
-  type ColumnDef,
-  type ColumnKey,
-  type HeaderState,
-  type Pageable,
-} from '../../data/dummydata'
+import { getCellValue as defaultGetCellValue } from '../../getCellValue'
+import { applyHeaderState, toHeaderState } from '../../headerState'
+import type { ColumnDef, ColumnKey, HeaderState, PageResponse, Pageable } from '../../types'
 import { AddColumnMenu } from './AddColumnMenu'
 import { ColumnHeader } from './ColumnHeader'
 import {
@@ -45,25 +35,28 @@ import './EdgeTable.css'
 /** YouTrack 행 높이 — virtualizer / CSS 와 동일하게 유지 */
 const ROW_HEIGHT_PX = 40
 
-type EdgeTableProps = {
+export type EdgeTableProps<T> = {
   /** Spring Page 형태 응답. 테이블은 content를 그대로 렌더링한다. */
-  data: AssetPageResponse
+  data: PageResponse<T>
+  /** 칼럼 정의(react_grid `header`). `render` 포함 가능. */
+  columns: ColumnDef[]
   /**
    * jsGrid `onPageChange`와 동일.
    * 페이지/정렬 변경 시 pageable을 넘기며, 데이터 fetch는 부모 책임.
    */
   onPageChange?: (pageable: Pageable) => void
-  /**
-   * 칼럼 정의(react_grid `header`). `render` 포함 가능.
-   * 생략 시 `ALL_COLUMNS`.
-   */
-  columns?: ColumnDef[]
+  /** 행 고유 키. 기본: `row.id` */
+  getRowId?: (row: T, index: number) => string | number
+  /** 셀 표시 문자열. 기본: `getCellValue` */
+  getCellValue?: (row: T, columnKey: ColumnKey) => string
+  /** 최초 표시 칼럼 키(헤더 저장 없을 때). 기본: columns 전체 */
+  defaultVisibleKeys?: ColumnKey[]
   /** YouTrack형 별(즐겨찾기) 표시 여부 */
   showStar?: boolean
   /** 별표 클릭 시 해당 행 데이터와 활성 여부 전달 */
-  onStarClick?: (row: Asset, starred: boolean) => void
+  onStarClick?: (row: T, starred: boolean) => void
   /** 체크박스 선택 변경 시 체크된 행 목록 전달 */
-  onSelectionChange?: (rows: Asset[]) => void
+  onSelectionChange?: (rows: T[]) => void
   /**
    * 칼럼 추가·제거·순서 변경 시 호출 (react_grid `onHeaderSave`와 동일 HeaderState[]).
    */
@@ -80,7 +73,7 @@ type EdgeTableProps = {
   maxHeight?: number
 }
 
-function parseSort(pageable?: AssetPageResponse['pageable'] | Pageable): {
+function parseSort(pageable?: PageResponse<unknown>['pageable'] | Pageable): {
   key: ColumnKey | null
   direction: SortDirection | null
 } {
@@ -93,33 +86,38 @@ function parseSort(pageable?: AssetPageResponse['pageable'] | Pageable): {
   return { key, direction: 'asc' }
 }
 
-function rowsFromIds(ids: Set<number>, rows: Asset[]): Asset[] {
-  return rows.filter((row) => ids.has(row.id))
+function rowsFromIds<T>(
+  ids: Set<string | number>,
+  rows: T[],
+  getRowId: (row: T, index: number) => string | number,
+): T[] {
+  return rows.filter((row, index) => ids.has(getRowId(row, index)))
 }
 
 function computeVirtualOverscan(columnCount: number) {
   return Math.max(3, Math.min(12, Math.floor(480 / Math.max(columnCount, 1))))
 }
 
-function DefaultCellContent({ columnKey, value }: { columnKey: ColumnKey; value: string }) {
+function DefaultCellContent({ value }: { value: string }) {
   if (!value.trim()) return null
-
-  if (columnKey === 'assetCode') {
-    return <span className="edge-table__mono">{value}</span>
-  }
-  if (columnKey === 'assetName') {
-    return <span className="edge-table__name">{value}</span>
-  }
-  if (columnKey === 'operator' || columnKey === 'handler') {
-    return <span className="edge-table__people">{value}</span>
-  }
   return <span>{value}</span>
 }
 
-export function EdgeTable({
+function defaultRowId<T>(row: T, index: number): string | number {
+  if (row != null && typeof row === 'object' && 'id' in row) {
+    const id = (row as { id: unknown }).id
+    if (typeof id === 'string' || typeof id === 'number') return id
+  }
+  return index
+}
+
+export function EdgeTable<T>({
   data,
+  columns: catalog,
   onPageChange,
-  columns: columnsProp,
+  getRowId = defaultRowId,
+  getCellValue = defaultGetCellValue as (row: T, columnKey: ColumnKey) => string,
+  defaultVisibleKeys,
   showStar = false,
   onStarClick,
   onSelectionChange,
@@ -127,27 +125,27 @@ export function EdgeTable({
   onHeaderReset,
   initialHeaders = null,
   maxHeight,
-}: EdgeTableProps) {
+}: EdgeTableProps<T>) {
   const isHeightCapped = maxHeight != null && maxHeight > 0
-  const catalog = columnsProp ?? ALL_COLUMNS
+  const fallbackVisibleKeys = defaultVisibleKeys ?? catalog.map((col) => col.key)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const [visibleColumnKeys, setVisibleColumnKeys] = useState<ColumnKey[]>(() =>
     applyHeaderState({
       columns: catalog,
       state: initialHeaders,
-      fallbackVisibleKeys: DEFAULT_VISIBLE_COLUMNS,
+      fallbackVisibleKeys,
     }).visibleKeys,
   )
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() =>
     applyHeaderState({
       columns: catalog,
       state: initialHeaders,
-      fallbackVisibleKeys: DEFAULT_VISIBLE_COLUMNS,
+      fallbackVisibleKeys,
     }).columnWidths,
   )
-  const [selected, setSelected] = useState<Set<number>>(new Set())
-  const [starred, setStarred] = useState<Set<number>>(new Set())
+  const [selected, setSelected] = useState<Set<string | number>>(new Set())
+  const [starred, setStarred] = useState<Set<string | number>>(new Set())
   const [activeKey, setActiveKey] = useState<ColumnKey | null>(null)
   /** react_grid freezeUntilIndex — 해당 칼럼 키까지 sticky */
   const [freezeUntilKey, setFreezeUntilKey] = useState<ColumnKey | null>(null)
@@ -182,11 +180,10 @@ export function EdgeTable({
     const applied = applyHeaderState({
       columns: catalog,
       state: initialHeaders,
-      fallbackVisibleKeys: DEFAULT_VISIBLE_COLUMNS,
+      fallbackVisibleKeys,
     })
     setVisibleColumnKeys(applied.visibleKeys)
     setColumnWidths(applied.columnWidths)
-    // catalog은 columns prop 참조 안정화(useMemo) 전제 — 헤더 로드 시에만 복원
     // eslint-disable-next-line react-hooks/exhaustive-deps -- initialHeaders 변경 시에만
   }, [initialHeadersKey, initialHeaders])
 
@@ -257,7 +254,7 @@ export function EdgeTable({
     overscan: virtualOverscan,
     getItemKey: (index) => {
       const row = pageRows[index]
-      return row?.id != null ? String(row.id) : `idx-${index}`
+      return row != null ? String(getRowId(row, index)) : `idx-${index}`
     },
   })
 
@@ -305,7 +302,7 @@ export function EdgeTable({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
-  const pageIds = pageRows.map((row) => row.id)
+  const pageIds = pageRows.map((row, index) => getRowId(row, index))
   const allSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id))
 
   const toggleAll = () => {
@@ -316,23 +313,24 @@ export function EdgeTable({
       pageIds.forEach((id) => next.add(id))
     }
     setSelected(next)
-    onSelectionChange?.(rowsFromIds(next, pageRows))
+    onSelectionChange?.(rowsFromIds(next, pageRows, getRowId))
   }
 
-  const toggleRow = (id: number) => {
+  const toggleRow = (id: string | number) => {
     const next = new Set(selected)
     if (next.has(id)) next.delete(id)
     else next.add(id)
     setSelected(next)
-    onSelectionChange?.(rowsFromIds(next, pageRows))
+    onSelectionChange?.(rowsFromIds(next, pageRows, getRowId))
   }
 
-  const toggleStar = (row: Asset) => {
-    const nextStarred = !starred.has(row.id)
+  const toggleStar = (row: T, index: number) => {
+    const id = getRowId(row, index)
+    const nextStarred = !starred.has(id)
     setStarred((prev) => {
       const next = new Set(prev)
-      if (nextStarred) next.add(row.id)
-      else next.delete(row.id)
+      if (nextStarred) next.add(id)
+      else next.delete(id)
       return next
     })
     onStarClick?.(row, nextStarred)
@@ -340,7 +338,7 @@ export function EdgeTable({
 
   const commitHeaderKeys = (nextKeys: ColumnKey[]) => {
     setVisibleColumnKeys(nextKeys)
-    void onHeaderSave?.(toHeaderState(nextKeys, columnWidths))
+    void onHeaderSave?.(toHeaderState(nextKeys, catalog, columnWidths))
   }
 
   const addColumn = (columnKey: ColumnKey) => {
@@ -357,7 +355,7 @@ export function EdgeTable({
     const applied = applyHeaderState({
       columns: catalog,
       state: null,
-      fallbackVisibleKeys: DEFAULT_VISIBLE_COLUMNS,
+      fallbackVisibleKeys,
     })
     setVisibleColumnKeys(applied.visibleKeys)
     setColumnWidths(applied.columnWidths)
@@ -381,7 +379,7 @@ export function EdgeTable({
 
   const activeColumn = activeKey ? columnMap.get(activeKey) : null
 
-  const renderCell = (column: ColumnDef, row: Asset, rowIndex: number) => {
+  const renderCell = (column: ColumnDef, row: T, rowIndex: number) => {
     const display = getCellValue(row, column.key)
     const rendered = invokeCellRender(column.render, {
       row,
@@ -391,7 +389,7 @@ export function EdgeTable({
       stopRowClick,
     })
     if (rendered != null) return rendered
-    return <DefaultCellContent columnKey={column.key} value={display} />
+    return <DefaultCellContent value={display} />
   }
 
   return (
@@ -475,27 +473,27 @@ export function EdgeTable({
               {virtualItems.map((virtualRow) => {
                 const row = pageRows[virtualRow.index]
                 if (!row) return null
+                const rowId = getRowId(row, virtualRow.index)
+                const rowLabel = String(rowId)
                 return (
                   <tr
                     key={virtualRow.key}
                     data-index={virtualRow.index}
-                    className={selected.has(row.id) ? 'is-selected' : undefined}
+                    className={selected.has(rowId) ? 'is-selected' : undefined}
                     style={{ height: ROW_HEIGHT_PX }}
                   >
                     {showStar ? (
                       <td className="edge-table__td edge-table__td--star">
                         <button
                           type="button"
-                          className={`edge-table__star${starred.has(row.id) ? ' is-active' : ''}`}
+                          className={`edge-table__star${starred.has(rowId) ? ' is-active' : ''}`}
                           aria-label={
-                            starred.has(row.id)
-                              ? `${row.assetName ?? row.id} 별표 해제`
-                              : `${row.assetName ?? row.id} 별표`
+                            starred.has(rowId) ? `${rowLabel} 별표 해제` : `${rowLabel} 별표`
                           }
-                          aria-pressed={starred.has(row.id)}
-                          onClick={() => toggleStar(row)}
+                          aria-pressed={starred.has(rowId)}
+                          onClick={() => toggleStar(row, virtualRow.index)}
                         >
-                          <StarIcon filled={starred.has(row.id)} />
+                          <StarIcon filled={starred.has(rowId)} />
                         </button>
                       </td>
                     ) : null}
@@ -504,9 +502,9 @@ export function EdgeTable({
                     >
                       <input
                         type="checkbox"
-                        checked={selected.has(row.id)}
-                        onChange={() => toggleRow(row.id)}
-                        aria-label={`${row.assetName ?? row.id} 선택`}
+                        checked={selected.has(rowId)}
+                        onChange={() => toggleRow(rowId)}
+                        aria-label={`${rowLabel} 선택`}
                       />
                     </td>
                     {visibleColumns.map((column, dataColIndex) => {
