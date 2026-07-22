@@ -84,15 +84,7 @@ function App() {
   )
 
   const [headers, setHeaders] = useState<HeaderState[] | null>(() => loadStoredHeaders(ALL_COLUMNS))
-  /** empty state 미리보기 — content 비움 */
-  const [pageData, setPageData] = useState<AssetPageResponse>(() => ({
-    ...fetchAssetPage({ pageNumber: 0 }),
-    content: [],
-    numberOfElements: 0,
-    empty: true,
-    totalElements: 0,
-    totalPages: 0,
-  }))
+  const [pageData, setPageData] = useState<AssetPageResponse>(() => fetchAssetPage({ pageNumber: 0 }))
 
   const handleStarClick = (row: Asset, starred: boolean) => {
     console.log('onStarClick', { starred, row })
@@ -124,25 +116,23 @@ function App() {
       <header className="app__header">
         <h1>자산 목록</h1>
         <p>
-          maxHeight 있으면 그 높이 고정 · 없으면 부모 최대치 · Alt+틀고정 · onPageChange
+          maxHeight 있으면 고정+스크롤 · 없으면 행만큼 높이 증가 · Alt+틀고정
         </p>
       </header>
-      <div className="app__table">
-        <EdgeTable<Asset>
-          showStar
-          // maxHeight={480}
-          columns={columns}
-          data={pageData}
-          defaultVisibleKeys={DEFAULT_VISIBLE_COLUMNS}
-          getCellValue={getCellValue}
-          initialHeaders={headers}
-          onPageChange={handlePageChange}
-          onStarClick={handleStarClick}
-          onSelectionChange={handleSelectionChange}
-          onHeaderSave={handleHeaderSave}
-          onHeaderReset={handleHeaderReset}
-        />
-      </div>
+      <EdgeTable<Asset>
+        showStar
+        // maxHeight={480}
+        columns={columns}
+        data={pageData}
+        defaultVisibleKeys={DEFAULT_VISIBLE_COLUMNS}
+        getCellValue={getCellValue}
+        initialHeaders={headers}
+        onPageChange={handlePageChange}
+        onStarClick={handleStarClick}
+        onSelectionChange={handleSelectionChange}
+        onHeaderSave={handleHeaderSave}
+        onHeaderReset={handleHeaderReset}
+      />
     </main>
   )
 }

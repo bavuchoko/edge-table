@@ -77,8 +77,8 @@ export type EdgeTableProps<T> = {
   initialHeaders?: HeaderState[] | null
   /**
    * 테이블 스크롤 영역 높이(px).
-   * - 있음: 그 높이로 고정 (thead sticky + 본문 스크롤)
-   * - 없음: 부모를 overflow 하지 않는 최대 높이로 채움 (부모에 높이 또는 flex 필요)
+   * - 있음: 그 높이로 고정 (thead sticky + 본문 세로 스크롤)
+   * - 없음: 행 수만큼 테이블 높이 증가 (세로 스크롤 없음)
    */
   maxHeight?: number
   /** content가 비었을 때 empty 영역 커스텀 (제목/설명/이미지 또는 children) */

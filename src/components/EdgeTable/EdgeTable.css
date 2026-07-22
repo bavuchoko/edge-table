@@ -2,45 +2,36 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  min-height: 0;
   background: #fff;
 }
 
 /*
  * 높이 계약
- * - maxHeight 있음: 스크롤 영역을 그 px로 고정
- * - 없음: 부모를 넘치지 않는 최대 높이로 채움 (부모에 높이/ flex 필요)
+ * - maxHeight 없음: 행 수만큼 높이 증가 (세로 스크롤 없음)
+ * - maxHeight 있음: 그 높이로 고정 + 본문 세로 스크롤
  */
 .edge-table-shell:not(.is-max-height) {
-  flex: 1 1 auto;
-  height: 100%;
-  max-height: 100%;
-  overflow: hidden;
+  height: auto;
 }
 
 .edge-table-shell.is-max-height {
   flex: 0 0 auto;
-  height: auto;
-  max-height: none;
-  align-self: flex-start;
   width: 100%;
 }
 
 .edge-table-scroll {
-  flex: 1 1 auto;
   width: 100%;
-  min-height: 0;
   overflow-x: auto;
-  overflow-y: auto;
+  overflow-y: visible;
   scrollbar-width: thin;
   scrollbar-color: #c9ccd4 transparent;
 }
 
 /* 명시 높이: 스크롤 뷰포트 고정 */
 .edge-table-scroll.is-max-height {
-  flex: 0 0 auto;
   height: var(--edge-table-max-height);
   max-height: var(--edge-table-max-height);
+  overflow-y: auto;
 }
 
 .edge-table-scroll::-webkit-scrollbar {
@@ -95,19 +86,19 @@
   box-shadow: none;
 }
 
-/* 세로 스크롤 시 th 고정 (부모 채움 / maxHeight 공통) */
-.edge-table-scroll thead {
+/* maxHeight 모드에서만 세로 스크롤 + th 고정 */
+.edge-table-scroll.is-max-height thead {
   position: sticky;
   top: 0;
   z-index: 3;
 }
 
-.edge-table-scroll thead th {
+.edge-table-scroll.is-max-height thead th {
   top: 0;
   background: #fff;
 }
 
-.edge-table-scroll thead .edge-table__th.is-frozen {
+.edge-table-scroll.is-max-height thead .edge-table__th.is-frozen {
   background: rgb(219, 234, 254);
 }
 
