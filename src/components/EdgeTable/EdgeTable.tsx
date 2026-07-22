@@ -19,12 +19,14 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import {
   useCallback,
   useEffect,
+  useImperativeHandle,
   useMemo,
   useRef,
   useState,
   type CSSProperties,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
+  type Ref,
 } from 'react'
 import {
   ADD_COLUMN_WIDTH,
@@ -34,10 +36,14 @@ import {
   hasFixedWidth,
   resolveTableLayout,
 } from '../../columnWidth'
-import { getCellValue as defaultGetCellValue } from '../../getCellValue'
-import { applyHeaderState, toHeaderState } from '../../headerState'
+import { getCellValue } from '../../getCellValue'
+import {
+  applyHeaderDefaults,
+  headerSignature,
+  withVisibleOrder,
+} from '../../headerState'
 import { resolvePageMeta } from '../../resolvePageMeta'
-import type { ColumnDef, ColumnKey, HeaderState, PageResponse, Pageable } from '../../types'
+import type { ColumnKey, HeaderState, PageResponse, Pageable } from '../../types'
 import { AddColumnMenu } from './AddColumnMenu'
 import { ColumnHeader } from './ColumnHeader'
 import { renderEdgeTableEmpty, type EdgeTableEmptyProps } from './EdgeTableEmpty'
@@ -55,11 +61,22 @@ import './EdgeTable.css'
 /** YouTrack 행 높이 — virtualizer / CSS 와 동일하게 유지 */
 const ROW_HEIGHT_PX = 40
 
+/** `ref.current.getChecked()` — 현재 체크된 행 객체 배열 */
+export type EdgeTableHandle<T = unknown> = {
+  getChecked: () => T[]
+}
+
 export type EdgeTableProps<T> = {
   /** Spring Page 형태 응답. 테이블은 content를 그대로 렌더링한다. */
   data: PageResponse<T>
-  /** 칼럼 정의(react_grid `header`). `render` 포함 가능. */
-  columns: ColumnDef[]
+  /** 헤더 정의 + 현재 표시 상태 (순서·visible·width·default·render) */
+  header: HeaderState[]
+  /** 칼럼 추가·제거·순서 변경 시 */
+  onHeaderChanged?: (headers: HeaderState[]) => void | Promise<void>
+  /** default 기준으로 복원 후 호출 */
+  onHeaderReset?: () => void | Promise<void>
+  /** `getChecked()` 등 imperative API */
+  ref?: Ref<EdgeTableHandle<T>>
   /**
    * jsGrid `onPageChange`와 동일.
    * 페이지/정렬 변경 시 pageable을 넘기며, 데이터 fetch는 부모 책임.
@@ -67,30 +84,16 @@ export type EdgeTableProps<T> = {
   onPageChange?: (pageable: Pageable) => void
   /** 행 고유 키. 기본: `row.id` */
   getRowId?: (row: T, index: number) => string | number
-  /** 셀 표시 문자열. 기본: `getCellValue` */
-  getCellValue?: (row: T, columnKey: ColumnKey) => string
-  /** 최초 표시 칼럼 키(헤더 저장 없을 때). 기본: columns 전체 */
-  defaultVisibleKeys?: ColumnKey[]
   /** YouTrack형 별(즐겨찾기) 표시 여부 */
   showStar?: boolean
   /** 별표 클릭 시 해당 행 데이터와 활성 여부 전달 */
   onStarClick?: (row: T, starred: boolean) => void
-  /** 체크박스 선택 변경 시 체크된 행 목록 전달 */
-  onSelectionChange?: (rows: T[]) => void
   /**
    * jsGrid `onRowClick`과 동일. 행 클릭 시 row 전달.
    * - 체크/별/input/button/a 클릭은 무시
    * - 칼럼 `render`에 onClick 등이 있으면 해당 셀은 행 클릭 전파 차단
    */
   onRowClick?: (row: T) => void
-  /**
-   * 칼럼 추가·제거·순서 변경 시 호출 (react_grid `onHeaderSave`와 동일 HeaderState[]).
-   */
-  onHeaderSave?: (headers: HeaderState[]) => void | Promise<void>
-  /** jsGrid `onHeaderReset` 대응 — 기본 칼럼으로 복원 후 호출 */
-  onHeaderReset?: () => void | Promise<void>
-  /** 저장된 헤더 상태(로드 시 순서/visible/width 복원) */
-  initialHeaders?: HeaderState[] | null
   /**
    * 테이블 스크롤 영역 높이(px).
    * - 있음: 그 높이로 고정 (thead sticky + 본문 세로 스크롤)
@@ -141,24 +144,20 @@ function defaultRowId<T>(row: T, index: number): string | number {
 
 export function EdgeTable<T>({
   data,
-  columns: catalog,
+  header,
+  onHeaderChanged,
+  onHeaderReset,
+  ref,
   onPageChange,
   getRowId = defaultRowId,
-  getCellValue = defaultGetCellValue as (row: T, columnKey: ColumnKey) => string,
-  defaultVisibleKeys,
   showStar = false,
   onStarClick,
-  onSelectionChange,
   onRowClick,
-  onHeaderSave,
-  onHeaderReset,
-  initialHeaders = null,
   maxHeight,
   empty,
 }: EdgeTableProps<T>) {
   const isHeightCapped = maxHeight != null && maxHeight > 0
   const isEmpty = (data.content?.length ?? 0) === 0
-  const fallbackVisibleKeys = defaultVisibleKeys ?? catalog.map((col) => col.key)
   const scrollRef = useRef<HTMLDivElement>(null)
   const resizeObserverRef = useRef<ResizeObserver | null>(null)
   const [viewportWidth, setViewportWidth] = useState(0)
@@ -186,20 +185,7 @@ export function EdgeTable<T>({
     [],
   )
 
-  const [visibleColumnKeys, setVisibleColumnKeys] = useState<ColumnKey[]>(() =>
-    applyHeaderState({
-      columns: catalog,
-      state: initialHeaders,
-      fallbackVisibleKeys,
-    }).visibleKeys,
-  )
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() =>
-    applyHeaderState({
-      columns: catalog,
-      state: initialHeaders,
-      fallbackVisibleKeys,
-    }).columnWidths,
-  )
+  const [headers, setHeaders] = useState<HeaderState[]>(() => header)
   const [selected, setSelected] = useState<Set<string | number>>(new Set())
   const [starred, setStarred] = useState<Set<string | number>>(new Set())
   const [activeKey, setActiveKey] = useState<ColumnKey | null>(null)
@@ -226,42 +212,28 @@ export function EdgeTable<T>({
     }
   }, [])
 
-  const initialHeadersKey = useMemo(
-    () => (initialHeaders == null ? '' : JSON.stringify(initialHeaders)),
-    [initialHeaders],
-  )
+  const headerValueKey = useMemo(() => headerSignature(header), [header])
 
   useEffect(() => {
-    if (!initialHeadersKey) return
-    const applied = applyHeaderState({
-      columns: catalog,
-      state: initialHeaders,
-      fallbackVisibleKeys,
-    })
-    setVisibleColumnKeys(applied.visibleKeys)
-    setColumnWidths(applied.columnWidths)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- initialHeaders 변경 시에만
-  }, [initialHeadersKey, initialHeaders])
+    setHeaders(header)
+  }, [headerValueKey]) // eslint-disable-line react-hooks/exhaustive-deps -- header 시그니처 변경 시에만
 
-  const columnMap = useMemo(() => {
-    return new Map(
-      catalog.map((col) => {
-        const saved = columnWidths[col.key]
-        if (hasFixedWidth(saved)) {
-          return [col.key, { ...col, width: clampColumnWidth(saved) }] as const
-        }
+  const visibleColumns = useMemo(() => {
+    return headers
+      .filter((col) => col.visible)
+      .map((col) => {
         if (hasFixedWidth(col.width)) {
-          return [col.key, { ...col, width: clampColumnWidth(col.width) }] as const
+          return { ...col, width: clampColumnWidth(col.width) }
         }
         const { width: _w, ...rest } = col
-        return [col.key, rest] as const
-      }),
-    )
-  }, [catalog, columnWidths])
+        return rest
+      })
+  }, [headers])
 
-  const visibleColumns = visibleColumnKeys
-    .map((key) => columnMap.get(key))
-    .filter((col): col is NonNullable<typeof col> => Boolean(col))
+  const visibleColumnKeys = useMemo(
+    () => visibleColumns.map((col) => col.key),
+    [visibleColumns],
+  )
 
   /** gap % 폭은 테이블을 무한 확장시키므로 px로 확정 */
   const { columns: layoutColumns, gapWidth, tableWidth } = useMemo(
@@ -281,15 +253,19 @@ export function EdgeTable<T>({
     padding: 0,
   }
 
-  const availableColumns = catalog
-    .filter((col) => !visibleColumnKeys.includes(col.key))
-    .map((col) => {
-      const saved = columnWidths[col.key]
-      if (hasFixedWidth(saved)) return { ...col, width: clampColumnWidth(saved) }
-      if (hasFixedWidth(col.width)) return { ...col, width: clampColumnWidth(col.width) }
-      const { width: _w, ...rest } = col
-      return rest
-    })
+  const availableColumns = useMemo(
+    () =>
+      headers
+        .filter((col) => !col.visible)
+        .map((col) => {
+          if (hasFixedWidth(col.width)) {
+            return { ...col, width: clampColumnWidth(col.width) }
+          }
+          const { width: _w, ...rest } = col
+          return rest
+        }),
+    [headers],
+  )
 
   const freezeUntilIndex = resolveFreezeUntilIndex(freezeUntilKey, visibleColumnKeys)
 
@@ -313,20 +289,43 @@ export function EdgeTable<T>({
   const page = pageMeta.number
   const pageSize = pageMeta.size
   const totalPages = pageMeta.totalPages
-  const { key: sortKey, direction: sortDirection } = parseSort(data.pageable)
+  // API가 pageable.sort 를 안 내려줘도, 사용자가 고른 정렬은 헤더에 유지
+  const dataSort = parseSort(data.pageable)
+  const [localSort, setLocalSort] = useState<{
+    key: ColumnKey | null
+    direction: SortDirection | null
+  }>(() => dataSort)
+  const dataSortToken = data.pageable?.sort?.[0]
+  useEffect(() => {
+    if (dataSort.key != null) {
+      setLocalSort(dataSort)
+    }
+  }, [dataSortToken]) // eslint-disable-line react-hooks/exhaustive-deps -- sync only when response brings sort
+  const sortKey = dataSort.key ?? localSort.key
+  const sortDirection = dataSort.key != null ? dataSort.direction : localSort.direction
+  const activeSort =
+    sortKey && sortDirection ? [`${sortKey},${sortDirection}`] : undefined
 
   const pageableBase: Pageable = useMemo(
     () => ({
       pageNumber: page,
       pageSize,
       size: pageSize,
-      sort: data.pageable?.sort,
+      sort: activeSort ?? data.pageable?.sort,
       sortDirection:
         sortDirection === 'desc' ? 'DESC' : sortDirection === 'asc' ? 'ASC' : undefined,
       totalElements: pageMeta.totalElements,
       totalPages,
     }),
-    [data.pageable?.sort, pageMeta.totalElements, totalPages, page, pageSize, sortDirection],
+    [
+      activeSort,
+      data.pageable?.sort,
+      pageMeta.totalElements,
+      totalPages,
+      page,
+      pageSize,
+      sortDirection,
+    ],
   )
 
   const virtualOverscan = useMemo(
@@ -360,6 +359,7 @@ export function EdgeTable<T>({
   const colSpan = (showStar ? 1 : 0) + 1 + layoutColumns.length + 2
 
   const emitPageable = (next: Pageable) => {
+    setLocalSort(parseSort(next))
     onPageChange?.(next)
   }
 
@@ -405,6 +405,22 @@ export function EdgeTable<T>({
   const pageIds = pageRows.map((row, index) => getRowId(row, index))
   const allSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id))
 
+  const selectedRef = useRef(selected)
+  selectedRef.current = selected
+  const pageRowsRef = useRef(pageRows)
+  pageRowsRef.current = pageRows
+  const getRowIdRef = useRef(getRowId)
+  getRowIdRef.current = getRowId
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      getChecked: () =>
+        rowsFromIds(selectedRef.current, pageRowsRef.current, getRowIdRef.current),
+    }),
+    [],
+  )
+
   const toggleAll = () => {
     const next = new Set(selected)
     if (allSelected) {
@@ -413,7 +429,6 @@ export function EdgeTable<T>({
       pageIds.forEach((id) => next.add(id))
     }
     setSelected(next)
-    onSelectionChange?.(rowsFromIds(next, pageRows, getRowId))
   }
 
   const toggleRow = (id: string | number) => {
@@ -421,7 +436,6 @@ export function EdgeTable<T>({
     if (next.has(id)) next.delete(id)
     else next.add(id)
     setSelected(next)
-    onSelectionChange?.(rowsFromIds(next, pageRows, getRowId))
   }
 
   const toggleStar = (row: T, index: number) => {
@@ -437,8 +451,9 @@ export function EdgeTable<T>({
   }
 
   const commitHeaderKeys = (nextKeys: ColumnKey[]) => {
-    setVisibleColumnKeys(nextKeys)
-    void onHeaderSave?.(toHeaderState(nextKeys, catalog, columnWidths))
+    const next = withVisibleOrder(headers, nextKeys)
+    setHeaders(next)
+    void onHeaderChanged?.(next)
   }
 
   const addColumn = (columnKey: ColumnKey) => {
@@ -452,13 +467,8 @@ export function EdgeTable<T>({
   }
 
   const resetHeaders = () => {
-    const applied = applyHeaderState({
-      columns: catalog,
-      state: null,
-      fallbackVisibleKeys,
-    })
-    setVisibleColumnKeys(applied.visibleKeys)
-    setColumnWidths(applied.columnWidths)
+    const next = applyHeaderDefaults(headers)
+    setHeaders(next)
     void onHeaderReset?.()
   }
 
@@ -477,9 +487,11 @@ export function EdgeTable<T>({
     commitHeaderKeys(arrayMove(visibleColumnKeys, oldIndex, newIndex))
   }
 
-  const activeColumn = activeKey ? columnMap.get(activeKey) : null
+  const activeColumn = activeKey
+    ? headers.find((col) => col.key === activeKey) ?? null
+    : null
 
-  const renderCell = (column: ColumnDef, row: T, rowIndex: number) => {
+  const renderCell = (column: HeaderState, row: T, rowIndex: number) => {
     const display = getCellValue(row, column.key)
     const rendered = invokeCellRender(column.render, {
       row,

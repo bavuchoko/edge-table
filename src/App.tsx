@@ -1,16 +1,15 @@
-import { useCallback, useMemo, useState } from 'react'
-import { EdgeTable } from './components/EdgeTable/EdgeTable'
+import { useCallback, useMemo, useRef, useState } from 'react'
+import { EdgeTable, type EdgeTableHandle } from './components/EdgeTable/EdgeTable'
 import {
-  ALL_COLUMNS,
-  DEFAULT_VISIBLE_COLUMNS,
+  ASSET_LIST_HEADER,
   SIMMS_HEADER_WIRE_NOTES,
+  applyHeaderDefaults,
   fetchAssetPage,
-  getCellValue,
   normalizeHeaderSetting,
+  toPersistableHeaders,
   type Asset,
   type AssetPageResponse,
   type CellRenderArgs,
-  type ColumnDef,
   type HeaderState,
   type Pageable,
 } from './data/dummydata'
@@ -18,72 +17,74 @@ import './App.css'
 
 const HEADER_STORAGE_KEY = 'edge-table.headers.asset'
 
-function loadStoredHeaders(columns: ColumnDef[]): HeaderState[] | null {
+function withDemoRenders(headers: HeaderState[]): HeaderState[] {
+  return headers.map((col) => {
+    if (col.key === 'assetCode') {
+      return {
+        ...col,
+        render: ({ value, stopRowClick }: CellRenderArgs) => {
+          const text = value == null ? '' : String(value)
+          if (!text.trim()) return null
+          return (
+            <button
+              type="button"
+              className="edge-table__mono"
+              style={{
+                padding: 0,
+                border: 0,
+                background: 'transparent',
+                cursor: 'pointer',
+                font: 'inherit',
+              }}
+              onClick={(e) => {
+                stopRowClick(e)
+                console.log('assetCode click', text)
+              }}
+            >
+              {text}
+            </button>
+          )
+        },
+      }
+    }
+    if (col.key === 'assetName') {
+      return {
+        ...col,
+        render: ({ value }: CellRenderArgs) => {
+          const text = value == null ? '' : String(value)
+          if (!text.trim()) return null
+          return <span className="edge-table__name">{text}</span>
+        },
+      }
+    }
+    if (col.key === 'operator' || col.key === 'handler') {
+      return {
+        ...col,
+        render: ({ value }: CellRenderArgs) => {
+          const text = value == null ? '' : String(value)
+          if (!text.trim()) return null
+          return <span className="edge-table__people">{text}</span>
+        },
+      }
+    }
+    return col
+  })
+}
+
+function loadHeaders(base: HeaderState[]): HeaderState[] {
   try {
     const raw = localStorage.getItem(HEADER_STORAGE_KEY)
-    if (!raw) return null
-    return normalizeHeaderSetting(JSON.parse(raw), columns)
+    if (!raw) return applyHeaderDefaults(base)
+    return normalizeHeaderSetting(JSON.parse(raw), base) ?? applyHeaderDefaults(base)
   } catch {
-    return null
+    return applyHeaderDefaults(base)
   }
 }
 
-/** react_grid Header.render 데모 — 자산코드를 링크로 */
-function renderAssetCode({ value, stopRowClick }: CellRenderArgs) {
-  const text = value == null ? '' : String(value)
-  if (!text.trim()) return null
-  return (
-    <button
-      type="button"
-      className="edge-table__mono"
-      style={{
-        padding: 0,
-        border: 0,
-        background: 'transparent',
-        cursor: 'pointer',
-        font: 'inherit',
-      }}
-      onClick={(e) => {
-        stopRowClick(e)
-        console.log('assetCode click', text)
-      }}
-    >
-      {text}
-    </button>
-  )
-}
-
 function App() {
-  const columns = useMemo<ColumnDef[]>(
-    () =>
-      ALL_COLUMNS.map((col) => {
-        if (col.key === 'assetCode') return { ...col, render: renderAssetCode }
-        if (col.key === 'assetName') {
-          return {
-            ...col,
-            render: ({ value }: CellRenderArgs) => {
-              const text = value == null ? '' : String(value)
-              if (!text.trim()) return null
-              return <span className="edge-table__name">{text}</span>
-            },
-          }
-        }
-        if (col.key === 'operator' || col.key === 'handler') {
-          return {
-            ...col,
-            render: ({ value }: CellRenderArgs) => {
-              const text = value == null ? '' : String(value)
-              if (!text.trim()) return null
-              return <span className="edge-table__people">{text}</span>
-            },
-          }
-        }
-        return col
-      }),
-    [],
-  )
-
-  const [headers, setHeaders] = useState<HeaderState[] | null>(() => loadStoredHeaders(ALL_COLUMNS))
+  const tableRef = useRef<EdgeTableHandle<Asset>>(null)
+  const baseHeaders = useMemo(() => withDemoRenders(ASSET_LIST_HEADER), [])
+  const [headers, setHeaders] = useState<HeaderState[]>(() => loadHeaders(baseHeaders))
   const [pageData, setPageData] = useState<AssetPageResponse>(() => fetchAssetPage({ pageNumber: 0 }))
 
   const handleStarClick = (row: Asset, starred: boolean) => {
@@ -94,10 +95,6 @@ function App() {
     console.log('onRowClick', row)
   }, [])
 
-  const handleSelectionChange = (rows: Asset[]) => {
-    console.log('onSelectionChange', rows)
-  }
-
   const handlePageChange = useCallback((pageable: Pageable) => {
     console.log('onPageChange', pageable)
     setPageData(fetchAssetPage(pageable))
@@ -105,15 +102,15 @@ function App() {
 
   const handleHeaderSave = useCallback((next: HeaderState[]) => {
     console.log('onHeaderSave', next)
-    localStorage.setItem(HEADER_STORAGE_KEY, JSON.stringify(next))
+    localStorage.setItem(HEADER_STORAGE_KEY, JSON.stringify(toPersistableHeaders(next)))
     setHeaders(next)
   }, [])
 
   const handleHeaderReset = useCallback(() => {
     console.log('onHeaderReset', SIMMS_HEADER_WIRE_NOTES)
     localStorage.removeItem(HEADER_STORAGE_KEY)
-    setHeaders(null)
-  }, [])
+    setHeaders(applyHeaderDefaults(baseHeaders))
+  }, [baseHeaders])
 
   return (
     <main className="app">
@@ -121,22 +118,26 @@ function App() {
         <h1>자산 목록</h1>
         <p>
           maxHeight 있으면 고정+스크롤 · 없으면 행만큼 높이 증가 · Alt+틀고정
+          {' · '}
+          <button
+            type="button"
+            onClick={() => console.log('getChecked', tableRef.current?.getChecked())}
+          >
+            getChecked
+          </button>
         </p>
       </header>
-      <EdgeTable<Asset>
+      <EdgeTable
+        ref={tableRef}
         showStar
         // maxHeight={480}
-        columns={columns}
         data={pageData}
-        defaultVisibleKeys={DEFAULT_VISIBLE_COLUMNS}
-        getCellValue={getCellValue}
-        initialHeaders={headers}
+        header={headers}
+        onHeaderChanged={handleHeaderSave}
+        onHeaderReset={handleHeaderReset}
         onPageChange={handlePageChange}
         onRowClick={handleRowClick}
         onStarClick={handleStarClick}
-        onSelectionChange={handleSelectionChange}
-        onHeaderSave={handleHeaderSave}
-        onHeaderReset={handleHeaderReset}
       />
     </main>
   )

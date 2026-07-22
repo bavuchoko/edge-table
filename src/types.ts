@@ -13,10 +13,17 @@ export type CellRenderArgs = {
 
 export type CellRender = ReactNode | ((args: CellRenderArgs) => ReactNode)
 
-export type ColumnDef = {
+/**
+ * 헤더(칼럼) 정의 + 표시 상태.
+ * - 배열 순서 = 헤더 순서
+ * - visible = 현재 표시 여부
+ * - default = 저장 없을 때·리셋 시 기본 표시
+ */
+export type HeaderState = {
   key: ColumnKey
   label: string
   type: 'text' | string
+  visible: boolean
   /** 있으면 고정 폭(130~500 clamp). 없으면 flex로 남는 폭을 나눔 */
   width?: number
   /**
@@ -24,6 +31,8 @@ export type ColumnDef = {
    * 뷰포트에 따라 늘어날 때 이 값 이하로는 줄지 않음 (기본 130, 최대 500 안).
    */
   minWidth?: number
+  /** 저장 없을 때·리셋 시 기본으로 표시할지 */
+  default?: boolean
   filterable?: boolean
   /**
    * react_grid `Header.render` — 함수 또는 ReactNode(element면 props 주입).
@@ -33,13 +42,8 @@ export type ColumnDef = {
   render?: CellRender
 }
 
-/** react_grid `HeaderState`와 동일 형태 — 칼럼 표시/순서 저장용 */
-export type HeaderState = {
-  key: string
-  label: string
-  visible: boolean
-  width?: number
-}
+/** @deprecated HeaderState와 동일 — 기존 이름 호환 */
+export type ColumnDef = HeaderState
 
 /** jsGrid / Spring Pageable 과 동일한 요청·상태 형태 */
 export type Pageable = {

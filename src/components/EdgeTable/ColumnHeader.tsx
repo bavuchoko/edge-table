@@ -46,7 +46,10 @@ export function ColumnHeader({
     ...columnSizeStyle(column.width ?? COLUMN_MIN_WIDTH),
     ...stickyStyle,
     zIndex: isDragging ? 6 : stickyStyle?.zIndex,
-    position: stickyStyle?.position ?? 'relative',
+    // 비고정 th에 relative를 상시 주면 tbody와 미세 어긋날 수 있음
+    ...(stickyStyle?.position != null || isDragging
+      ? { position: stickyStyle?.position ?? 'relative' }
+      : null),
   }
 
   const isSorted = Boolean(sortDirection)

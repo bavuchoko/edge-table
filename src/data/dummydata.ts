@@ -1,4 +1,5 @@
-import type { ColumnDef, ColumnKey, PageResponse, Pageable } from '../types'
+import { getCellValue } from '../getCellValue'
+import type { HeaderState, PageResponse, Pageable } from '../types'
 
 export type {
   CellRender,
@@ -79,47 +80,47 @@ export type AssetPageResponse = PageResponse<Asset> & {
   empty: boolean
 }
 
-/** 데모용 헤더(칼럼) 정의 */
-export const ALL_COLUMNS: ColumnDef[] = [
-  { key: 'assetName', label: '자산명', type: 'text', minWidth: 300 },
-  { key: 'assetCode', label: '자산코드', type: 'text', width: 120 },
-  { key: 'groupName', label: '자산그룹', type: 'text', width: 140 },
-  { key: 'taskName', label: '업무그룹', type: 'text', width: 140 },
-  { key: 'locationName', label: '자산위치', type: 'text', width: 140 },
-  { key: 'departmentName', label: '부서', type: 'text', width: 140 },
-  { key: 'projectName', label: '시스템', type: 'text', width: 140 },
-  { key: 'mngPrimaryName', label: '1차 업체', type: 'text', width: 140 },
-  { key: 'mngSecondaryName', label: '2차 업체', type: 'text', width: 140 },
-  { key: 'mngTertiaryName', label: '3차 업체', type: 'text', width: 140 },
-  { key: 'importDate', label: '도입일자', type: 'text', width: 140 },
-  { key: 'importPrice', label: '도입금액', type: 'text', width: 140 },
-  { key: 'mngPrice', label: '유지보수액', type: 'text', width: 140 },
-  { key: 'operator', label: '운영담당자', type: 'text', width: 140 },
-  { key: 'handler', label: '자산사용자', type: 'text', width: 140 },
-  { key: 'createdAt', label: '등록일', type: 'text', width: 140 },
-  { key: 'updatedAt', label: '수정일', type: 'text', width: 140 },
-  { key: 'attach_1', label: '할당아이피', type: 'text', width: 140, filterable: true },
-  { key: 'attach_2', label: 'SR요청주체', type: 'text', width: 140, filterable: true },
+/** 데모용 헤더 정의 — default:true 가 저장 없을 때·리셋 시 기본 표시 */
+export const ASSET_LIST_HEADER: HeaderState[] = [
+  { key: 'assetName', label: '자산명', type: 'text', minWidth: 300, default: true, visible: true },
+  { key: 'assetCode', label: '자산코드', type: 'text', width: 120, default: true, visible: true },
+  { key: 'groupName', label: '자산그룹', type: 'text', width: 140, default: true, visible: true },
+  { key: 'taskName', label: '업무그룹', type: 'text', width: 140, default: true, visible: true },
+  { key: 'locationName', label: '자산위치', type: 'text', width: 140, default: true, visible: true },
+  { key: 'departmentName', label: '부서', type: 'text', width: 140, default: true, visible: true },
+  { key: 'projectName', label: '시스템', type: 'text', width: 140, visible: false },
+  { key: 'mngPrimaryName', label: '1차 업체', type: 'text', width: 140, default: true, visible: true },
+  { key: 'mngSecondaryName', label: '2차 업체', type: 'text', width: 140, visible: false },
+  { key: 'mngTertiaryName', label: '3차 업체', type: 'text', width: 140, visible: false },
+  { key: 'importDate', label: '도입일자', type: 'text', width: 140, visible: false },
+  { key: 'importPrice', label: '도입금액', type: 'text', width: 140, visible: false },
+  { key: 'mngPrice', label: '유지보수액', type: 'text', width: 140, visible: false },
+  { key: 'operator', label: '운영담당자', type: 'text', width: 140, visible: false },
+  { key: 'handler', label: '자산사용자', type: 'text', width: 140, default: true, visible: true },
+  { key: 'createdAt', label: '등록일', type: 'text', width: 140, visible: false },
+  { key: 'updatedAt', label: '수정일', type: 'text', width: 140, visible: false },
+  { key: 'attach_1', label: '할당아이피', type: 'text', width: 140, filterable: true, visible: false },
+  { key: 'attach_2', label: 'SR요청주체', type: 'text', width: 140, filterable: true, visible: false },
 ]
 
-export const DEFAULT_VISIBLE_COLUMNS: ColumnKey[] = [
-  'assetName',
-  'assetCode',
-  'groupName',
-  'taskName',
-  'locationName',
-  'handler',
-  'departmentName',
-  'mngPrimaryName',
-]
+/** @deprecated ASSET_LIST_HEADER 사용 */
+export const ALL_COLUMNS = ASSET_LIST_HEADER
 
 export {
+  applyHeaderDefaults,
   applyHeaderState,
+  defaultVisibleKeysFromColumns,
+  headerSignature,
+  mergeHeaderState,
   normalizeHeaderSetting,
   toHeaderState,
+  toPersistableHeaders,
+  withVisibleOrder,
+  visibleKeysFromHeaders,
   SIMMS_HEADER_WIRE_NOTES,
   type AppliedHeaderState,
   type LegacyHeaderSetting,
+  type PersistableHeaderState,
 } from '../headerState'
 
 export function formatUsers(users: AssetUser[] | null | undefined): string {
@@ -130,39 +131,19 @@ export function formatUsers(users: AssetUser[] | null | undefined): string {
     .join(', ')
 }
 
-function getAttachValue(asset: Asset, attachKey: string): string {
-  const match = /^attach_(\d+)$/.exec(attachKey)
-  if (!match) return ''
-
-  const keyNumber = Number(match[1])
-  const fromString = asset.assetCustomStrings?.find(
-    (item) => !item.isRemoved && item.keyString === keyNumber,
-  )
-  if (fromString?.valueString) return fromString.valueString
-
-  const fromCode = asset.assetCustomCodes?.find(
-    (item) => !item.isRemoved && item.keyString === keyNumber,
-  )
-  return fromCode?.valueString ?? ''
-}
-
-export function getCellValue(asset: Asset, columnKey: ColumnKey): string {
-  if (columnKey.startsWith('attach_')) {
-    return getAttachValue(asset, columnKey)
+/** 커스텀 필드를 row 키로 펼쳐 내장 getCellValue가 읽게 함 */
+function withFlatAttachFields(asset: Asset): Asset & Record<string, unknown> {
+  const flat: Record<string, unknown> = { ...asset }
+  for (const item of asset.assetCustomStrings ?? []) {
+    if (item.isRemoved || item.valueString == null) continue
+    flat[`attach_${item.keyString}`] = item.valueString
   }
-
-  switch (columnKey) {
-    case 'operator':
-      return formatUsers(asset.operator)
-    case 'handler':
-      return formatUsers(asset.handler)
-    default: {
-      const value = asset[columnKey as keyof Asset]
-      if (value == null || value === '') return ''
-      if (typeof value === 'object') return ''
-      return String(value)
-    }
+  for (const item of asset.assetCustomCodes ?? []) {
+    if (item.isRemoved || item.valueString == null) continue
+    const key = `attach_${item.keyString}`
+    if (flat[key] == null) flat[key] = item.valueString
   }
+  return flat as Asset & Record<string, unknown>
 }
 
 /** 수기 작성 시드 자산 */
@@ -854,7 +835,7 @@ function buildContent(seeds: Asset[], targetCount: number): Asset[] {
     })
   }
 
-  return rows.slice(0, targetCount)
+  return rows.slice(0, targetCount).map(withFlatAttachFields) as Asset[]
 }
 
 const TOTAL_ELEMENTS = 70

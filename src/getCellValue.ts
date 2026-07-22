@@ -1,11 +1,20 @@
 /**
- * 기본 셀 값 추출 — `row[key]`를 문자열로.
- * 배열(담당자 등)은 `name`/`label` 필드를 이어 붙인다.
+ * 기본 셀 값 추출.
+ * - `row[key]` 또는 nested path (`group.name`)
+ * - 객체면 `name` / `label`
+ * - 배열(담당자 등)은 `name`/`label` 을 이어 붙임
  */
 export function getCellValue(row: unknown, columnKey: string): string {
-  if (row == null || typeof row !== 'object') return ''
-  const record = row as Record<string, unknown>
-  const value = record[columnKey]
+  if (row == null || typeof row !== 'object' || columnKey == null || columnKey === '') {
+    return ''
+  }
+
+  const value = columnKey.includes('.')
+    ? columnKey.split('.').reduce<unknown>((acc, key) => {
+        if (acc == null || typeof acc !== 'object') return undefined
+        return (acc as Record<string, unknown>)[key]
+      }, row)
+    : (row as Record<string, unknown>)[columnKey]
 
   if (value == null || value === '') return ''
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
@@ -25,6 +34,11 @@ export function getCellValue(row: unknown, columnKey: string): string {
       })
       .filter(Boolean)
       .join(', ')
+  }
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>
+    if (typeof obj.name === 'string') return obj.name
+    if (typeof obj.label === 'string') return obj.label
   }
   return ''
 }

@@ -104,6 +104,7 @@
 
 .edge-table th,
 .edge-table td {
+  box-sizing: border-box;
   border-bottom: 1px solid #e7e8eb;
   vertical-align: middle;
 }
@@ -118,6 +119,7 @@
   user-select: none;
   white-space: nowrap;
   background: #fff;
+  /* drag/trash가 th 밖으로 나가므로 visible 유지 */
   overflow: visible;
 }
 
@@ -265,7 +267,7 @@
   z-index: 5;
 }
 
-/* YouTrack: 칩 폭은 라벨+정렬만. 드래그/휴지통은 absolute라 호버해도 레이아웃 불변 */
+/* YouTrack: 칩 폭은 라벨+정렬만. 좌우 패딩 0 → td(0 12px)와 텍스트 시작선 일치 */
 .edge-table__th-inner {
   display: inline-flex;
   align-items: center;
@@ -273,7 +275,7 @@
   width: fit-content;
   max-width: 100%;
   min-height: 24px;
-  padding: 2px 4px;
+  padding: 2px 0;
   margin: 0;
   border-radius: 4px;
   position: relative;
