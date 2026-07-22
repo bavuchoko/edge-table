@@ -53,9 +53,27 @@ export type Pageable = {
   sortDirection?: 'ASC' | 'DESC'
 }
 
-/** Spring Page 형태 응답 */
+/** Spring Data Page 메타(루트 필드 또는 nested `page`) */
+export type PageMeta = {
+  size?: number
+  number?: number
+  totalElements?: number
+  totalPages?: number
+  numberOfElements?: number
+  first?: boolean
+  last?: boolean
+  empty?: boolean
+}
+
+/**
+ * 목록 페이지 응답.
+ * - Spring Page: content + totalPages/totalElements/number/size(+ pageable)
+ * - nested page: content + page: { size, number, totalElements, totalPages }
+ */
 export type PageResponse<T> = {
   content: T[]
+  /** nested page 메타 (API가 page 객체로 내려주는 경우) */
+  page?: PageMeta
   pageable?: {
     pageNumber?: number
     pageSize?: number

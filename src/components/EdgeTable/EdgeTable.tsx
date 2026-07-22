@@ -36,6 +36,7 @@ import {
 } from '../../columnWidth'
 import { getCellValue as defaultGetCellValue } from '../../getCellValue'
 import { applyHeaderState, toHeaderState } from '../../headerState'
+import { resolvePageMeta } from '../../resolvePageMeta'
 import type { ColumnDef, ColumnKey, HeaderState, PageResponse, Pageable } from '../../types'
 import { AddColumnMenu } from './AddColumnMenu'
 import { ColumnHeader } from './ColumnHeader'
@@ -308,9 +309,10 @@ export function EdgeTable<T>({
   }
 
   const pageRows = data.content
-  const page = data.number ?? data.pageable?.pageNumber ?? 0
-  const pageSize = data.size ?? data.pageable?.pageSize ?? 20
-  const totalPages = Math.max(1, data.totalPages ?? 1)
+  const pageMeta = resolvePageMeta(data)
+  const page = pageMeta.number
+  const pageSize = pageMeta.size
+  const totalPages = pageMeta.totalPages
   const { key: sortKey, direction: sortDirection } = parseSort(data.pageable)
 
   const pageableBase: Pageable = useMemo(
@@ -321,10 +323,10 @@ export function EdgeTable<T>({
       sort: data.pageable?.sort,
       sortDirection:
         sortDirection === 'desc' ? 'DESC' : sortDirection === 'asc' ? 'ASC' : undefined,
-      totalElements: data.totalElements,
-      totalPages: data.totalPages,
+      totalElements: pageMeta.totalElements,
+      totalPages,
     }),
-    [data.pageable?.sort, data.totalElements, data.totalPages, page, pageSize, sortDirection],
+    [data.pageable?.sort, pageMeta.totalElements, totalPages, page, pageSize, sortDirection],
   )
 
   const virtualOverscan = useMemo(

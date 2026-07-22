@@ -25,12 +25,14 @@ export {
   type AppliedHeaderState,
   type LegacyHeaderSetting,
 } from './headerState'
+export { resolvePageMeta } from './resolvePageMeta'
 export type {
   CellRender,
   CellRenderArgs,
   ColumnDef,
   ColumnKey,
   HeaderState,
+  PageMeta,
   PageResponse,
   Pageable,
 } from './types'
