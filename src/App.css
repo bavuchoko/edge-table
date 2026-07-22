@@ -9,9 +9,14 @@
 }
 
 .app__header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   flex: 0 0 auto;
-  margin-bottom: 20px;
+  margin: -24px -24px 20px;
+  padding: 24px 24px 16px;
   text-align: left;
+  background: #f3f4f6;
 }
 
 .app__header h1 {

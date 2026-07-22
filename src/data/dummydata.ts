@@ -857,10 +857,10 @@ function buildContent(seeds: Asset[], targetCount: number): Asset[] {
   return rows.slice(0, targetCount)
 }
 
-const TOTAL_ELEMENTS = 50
-const PAGE_SIZE = 20
+const TOTAL_ELEMENTS = 70
+const PAGE_SIZE = 40
 
-/** API 응답 형태 더미 (content ≈ 50건) */
+/** API 응답 형태 더미 (content ≈ 70건) */
 export const ASSET_PAGE: AssetPageResponse = {
   content: buildContent(ASSET_SEED, TOTAL_ELEMENTS),
   pageable: {
