@@ -17,6 +17,7 @@ import {
 } from '@dnd-kit/sortable'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -158,17 +159,31 @@ export function EdgeTable<T>({
   const isEmpty = (data.content?.length ?? 0) === 0
   const fallbackVisibleKeys = defaultVisibleKeys ?? catalog.map((col) => col.key)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const resizeObserverRef = useRef<ResizeObserver | null>(null)
   const [viewportWidth, setViewportWidth] = useState(0)
 
-  useEffect(() => {
-    const el = scrollRef.current
+  // empty ↔ data DOM 전환 시에도 스크롤 영역에 Observer를 다시 붙인다.
+  // (마운트 시 content가 비어 있으면 ref가 없어 viewportWidth=0에 고정되던 문제)
+  const setScrollEl = useCallback((el: HTMLDivElement | null) => {
+    scrollRef.current = el
+    resizeObserverRef.current?.disconnect()
+    resizeObserverRef.current = null
     if (!el) return
+
     const update = () => setViewportWidth(el.clientWidth)
     update()
     const ro = new ResizeObserver(update)
     ro.observe(el)
-    return () => ro.disconnect()
+    resizeObserverRef.current = ro
   }, [])
+
+  useEffect(
+    () => () => {
+      resizeObserverRef.current?.disconnect()
+      resizeObserverRef.current = null
+    },
+    [],
+  )
 
   const [visibleColumnKeys, setVisibleColumnKeys] = useState<ColumnKey[]>(() =>
     applyHeaderState({
@@ -482,7 +497,11 @@ export function EdgeTable<T>({
       className={`edge-table-shell${altHeld ? ' is-alt-held' : ''}${isHeightCapped ? ' is-max-height' : ''}`}
     >
       {isEmpty ? (
-        <div className={`edge-table-scroll${isHeightCapped ? ' is-max-height' : ''}`} style={scrollStyle}>
+        <div
+          ref={setScrollEl}
+          className={`edge-table-scroll${isHeightCapped ? ' is-max-height' : ''}`}
+          style={scrollStyle}
+        >
           {renderEdgeTableEmpty(empty)}
         </div>
       ) : (
@@ -494,7 +513,7 @@ export function EdgeTable<T>({
         onDragCancel={() => setActiveKey(null)}
       >
         <div
-          ref={scrollRef}
+          ref={setScrollEl}
           className={`edge-table-scroll${isHeightCapped ? ' is-max-height' : ''}`}
           style={scrollStyle}
         >
