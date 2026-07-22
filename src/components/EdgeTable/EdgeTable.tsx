@@ -365,6 +365,17 @@ export function EdgeTable<T>({
 
   const toggleSort = (columnKey: ColumnKey) => {
     const same = sortKey === columnKey
+    if (same && sortDirection === 'desc') {
+      emitPageable({
+        ...pageableBase,
+        pageNumber: 0,
+        pageSize,
+        size: pageSize,
+        sort: [],
+        sortDirection: undefined,
+      })
+      return
+    }
     const nextDir: SortDirection = same && sortDirection === 'asc' ? 'desc' : 'asc'
     emitPageable({
       ...pageableBase,
