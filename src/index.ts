@@ -3,6 +3,7 @@ import './components/EdgeTable/EdgeTable.css'
 
 export { EdgeTable, type EdgeTableProps } from './components/EdgeTable/EdgeTable'
 export { EdgeTableEmpty, type EdgeTableEmptyProps } from './components/EdgeTable/EdgeTableEmpty'
+export { stopRowClick } from './components/EdgeTable/renderCell'
 export {
   ADD_COLUMN_WIDTH,
   COLUMN_MAX_WIDTH,

@@ -16,7 +16,15 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+} from 'react'
 import {
   ADD_COLUMN_WIDTH,
   COLUMN_MIN_WIDTH,
@@ -30,7 +38,7 @@ import { applyHeaderState, toHeaderState } from '../../headerState'
 import type { ColumnDef, ColumnKey, HeaderState, PageResponse, Pageable } from '../../types'
 import { AddColumnMenu } from './AddColumnMenu'
 import { ColumnHeader } from './ColumnHeader'
-import { EdgeTableEmpty, renderEdgeTableEmpty, type EdgeTableEmptyProps } from './EdgeTableEmpty'
+import { renderEdgeTableEmpty, type EdgeTableEmptyProps } from './EdgeTableEmpty'
 import {
   computeDataColumnLeftOffsets,
   getFreezeStickyStyle,
@@ -39,7 +47,7 @@ import {
 } from './freezeColumns'
 import { SortIcon, StarIcon, type SortDirection } from './icons'
 import { Pagination } from './Pagination'
-import { invokeCellRender, stopRowClick } from './renderCell'
+import { invokeCellRender, reactNodeHasPointerHandler, stopRowClick } from './renderCell'
 import './EdgeTable.css'
 
 /** YouTrack 행 높이 — virtualizer / CSS 와 동일하게 유지 */
@@ -67,6 +75,12 @@ export type EdgeTableProps<T> = {
   onStarClick?: (row: T, starred: boolean) => void
   /** 체크박스 선택 변경 시 체크된 행 목록 전달 */
   onSelectionChange?: (rows: T[]) => void
+  /**
+   * jsGrid `onRowClick`과 동일. 행 클릭 시 row 전달.
+   * - 체크/별/input/button/a 클릭은 무시
+   * - 칼럼 `render`에 onClick 등이 있으면 해당 셀은 행 클릭 전파 차단
+   */
+  onRowClick?: (row: T) => void
   /**
    * 칼럼 추가·제거·순서 변경 시 호출 (react_grid `onHeaderSave`와 동일 HeaderState[]).
    */
@@ -133,6 +147,7 @@ export function EdgeTable<T>({
   showStar = false,
   onStarClick,
   onSelectionChange,
+  onRowClick,
   onHeaderSave,
   onHeaderReset,
   initialHeaders = null,
@@ -449,6 +464,15 @@ export function EdgeTable<T>({
     return <DefaultCellContent value={display} />
   }
 
+  const handleBodyRowClick = (event: ReactMouseEvent<HTMLTableRowElement>, row: T) => {
+    if (!onRowClick) return
+    const target = event.target as HTMLElement | null
+    if (target?.closest('input, button, a, label, .edge-table__star, .edge-table__td--check')) {
+      return
+    }
+    onRowClick(row)
+  }
+
   const scrollStyle = isHeightCapped
     ? ({ '--edge-table-max-height': `${maxHeight}px` } as CSSProperties)
     : undefined
@@ -548,8 +572,11 @@ export function EdgeTable<T>({
                   <tr
                     key={virtualRow.key}
                     data-index={virtualRow.index}
-                    className={selected.has(rowId) ? 'is-selected' : undefined}
+                    className={`${selected.has(rowId) ? 'is-selected' : ''}${
+                      onRowClick ? ' is-clickable' : ''
+                    }`.trim() || undefined}
                     style={{ height: ROW_HEIGHT_PX }}
+                    onClick={onRowClick ? (event) => handleBodyRowClick(event, row) : undefined}
                   >
                     {showStar ? (
                       <td className="edge-table__td edge-table__td--star">
@@ -560,7 +587,10 @@ export function EdgeTable<T>({
                             starred.has(rowId) ? `${rowLabel} 별표 해제` : `${rowLabel} 별표`
                           }
                           aria-pressed={starred.has(rowId)}
-                          onClick={() => toggleStar(row, virtualRow.index)}
+                          onClick={(event) => {
+                            stopRowClick(event)
+                            toggleStar(row, virtualRow.index)
+                          }}
                         >
                           <StarIcon filled={starred.has(rowId)} />
                         </button>
@@ -568,6 +598,7 @@ export function EdgeTable<T>({
                     ) : null}
                     <td
                       className={`edge-table__td edge-table__td--check${showStar ? ' has-star' : ''}`}
+                      onClick={stopRowClick}
                     >
                       <input
                         type="checkbox"
@@ -584,6 +615,8 @@ export function EdgeTable<T>({
                         isHeader: false,
                       })
                       const colWidth = column.width ?? COLUMN_MIN_WIDTH
+                      const cellContent = renderCell(column, row, virtualRow.index)
+                      const blocksRowClick = reactNodeHasPointerHandler(cellContent)
                       return (
                         <td
                           key={column.key}
@@ -594,8 +627,9 @@ export function EdgeTable<T>({
                             ...columnSizeStyle(colWidth),
                             ...stickyStyle,
                           }}
+                          onClick={blocksRowClick ? stopRowClick : undefined}
                         >
-                          {renderCell(column, row, virtualRow.index)}
+                          {cellContent}
                         </td>
                       )
                     })}

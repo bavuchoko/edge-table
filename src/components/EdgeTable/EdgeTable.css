@@ -442,6 +442,10 @@
   z-index: 1;
 }
 
+.edge-table tbody tr.is-clickable {
+  cursor: pointer;
+}
+
 .edge-table tbody tr:hover > .edge-table__td,
 .edge-table tbody tr:hover > .edge-table__td--star {
   background: #f5f9ff;

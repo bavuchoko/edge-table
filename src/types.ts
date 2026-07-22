@@ -25,7 +25,11 @@ export type ColumnDef = {
    */
   minWidth?: number
   filterable?: boolean
-  /** react_grid `Header.render` — 함수 또는 ReactNode(element면 props 주입) */
+  /**
+   * react_grid `Header.render` — 함수 또는 ReactNode(element면 props 주입).
+   * - 표시만 하면 `onRowClick`을 막지 않음
+   * - 반환 JSX에 `onClick` 등이 있거나 `args.stopRowClick(e)` 호출 시 행 클릭 차단
+   */
   render?: CellRender
 }
 

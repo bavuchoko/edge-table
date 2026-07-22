@@ -90,6 +90,10 @@ function App() {
     console.log('onStarClick', { starred, row })
   }
 
+  const handleRowClick = useCallback((row: Asset) => {
+    console.log('onRowClick', row)
+  }, [])
+
   const handleSelectionChange = (rows: Asset[]) => {
     console.log('onSelectionChange', rows)
   }
@@ -128,6 +132,7 @@ function App() {
         getCellValue={getCellValue}
         initialHeaders={headers}
         onPageChange={handlePageChange}
+        onRowClick={handleRowClick}
         onStarClick={handleStarClick}
         onSelectionChange={handleSelectionChange}
         onHeaderSave={handleHeaderSave}
