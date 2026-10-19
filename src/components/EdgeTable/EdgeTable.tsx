@@ -442,19 +442,17 @@ export function EdgeTable<T>({
     void onHeaderChanged?.(next)
   }
 
+  /** 숨겨지기 전 자리(headers 순서)로 다시 표시 */
   const addColumn = (columnKey: ColumnKey) => {
     if (visibleColumnKeys.includes(columnKey)) return
-    commitHeaderKeys([...visibleColumnKeys, columnKey])
+    commitHeaderKeys(
+      headers.filter((h) => h.visible || h.key === columnKey).map((h) => h.key),
+    )
   }
 
   const removeColumn = (columnKey: ColumnKey) => {
     if (visibleColumnKeys.length <= 1) return
     commitHeaderKeys(visibleColumnKeys.filter((key) => key !== columnKey))
-  }
-
-  const toggleColumn = (columnKey: ColumnKey) => {
-    if (visibleColumnKeys.includes(columnKey)) removeColumn(columnKey)
-    else addColumn(columnKey)
   }
 
   const resetHeaders = () => {
@@ -584,8 +582,7 @@ export function EdgeTable<T>({
                 <th className="edge-table__th edge-table__th--add" scope="col">
                   <AddColumnMenu
                     columns={headers}
-                    onToggle={toggleColumn}
-                    canRemove={visibleColumnKeys.length > 1}
+                    onAdd={addColumn}
                     onReset={onHeaderReset ? resetHeaders : undefined}
                   />
                 </th>

@@ -4,11 +4,9 @@ import type { ColumnDef, ColumnKey } from '../../types'
 import { PlusIcon, SearchIcon } from './icons'
 
 type AddColumnMenuProps = {
-  /** 전체 칼럼 (visible = 체크 여부) */
+  /** 전체 칼럼. visible인 칼럼은 이미 추가됨(비활성), 숨김 칼럼만 추가 가능. 감추기는 헤더 휴지통에서. */
   columns: ColumnDef[]
-  onToggle: (columnKey: ColumnKey) => void
-  /** false면 표시 중인 마지막 칼럼은 해제 불가 */
-  canRemove: boolean
+  onAdd: (columnKey: ColumnKey) => void
   onReset?: () => void
 }
 
@@ -17,28 +15,28 @@ type MenuPosition = {
   left: number
 }
 
-export function AddColumnMenu({ columns, onToggle, canRemove, onReset }: AddColumnMenuProps) {
+export function AddColumnMenu({ columns, onAdd, onReset }: AddColumnMenuProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const [activeIndex, setActiveIndex] = useState(0)
+  const [activeIndex, setActiveIndex] = useState(-1)
   const [position, setPosition] = useState<MenuPosition | null>(null)
-  /** 토글 시 headers 순서(표시 → 숨김)가 바뀌어도 항목이 튀지 않도록, 열 때의 순서를 고정 */
-  const [order, setOrder] = useState<ColumnKey[]>([])
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const ordered = useMemo(() => {
-    const rank = new Map(order.map((key, i) => [key, i] as const))
-    const rankOf = (key: ColumnKey) => rank.get(key) ?? order.length
-    return [...columns].sort((a, b) => rankOf(a.key) - rankOf(b.key))
-  }, [columns, order])
-
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return ordered
-    return ordered.filter((col) => col.label.toLowerCase().includes(q))
-  }, [ordered, query])
+    if (!q) return columns
+    return columns.filter((col) => col.label.toLowerCase().includes(q))
+  }, [columns, query])
+
+  /** from에서 step 방향으로 다음 추가 가능한(숨김) 칼럼 index. 없으면 from 유지 */
+  const findAddable = (from: number, step: 1 | -1) => {
+    for (let i = from + step; i >= 0 && i < filtered.length; i += step) {
+      if (!filtered[i].visible) return i
+    }
+    return from
+  }
 
   const updatePosition = () => {
     const trigger = triggerRef.current
@@ -93,22 +91,25 @@ export function AddColumnMenu({ columns, onToggle, canRemove, onReset }: AddColu
 
   useEffect(() => {
     if (open) {
-      setActiveIndex(0)
+      setActiveIndex(findAddable(-1, 1))
       requestAnimationFrame(() => inputRef.current?.focus())
     }
-  }, [open, query])
+  }, [open, query]) // eslint-disable-line react-hooks/exhaustive-deps -- 열기/검색어 변경 시에만
 
   const closeMenu = () => {
     setOpen(false)
     setQuery('')
   }
 
-  const isLocked = (col: ColumnDef) => col.visible && !canRemove
-
-  // 여러 칼럼을 연달아 토글할 수 있도록 메뉴는 열어둔다 (외부 클릭/Esc로 닫힘)
-  const handleToggle = (col: ColumnDef) => {
-    if (isLocked(col)) return
-    onToggle(col.key)
+  // 여러 칼럼을 연달아 추가할 수 있도록 메뉴는 열어둔다 (외부 클릭/Esc로 닫힘)
+  const handleAdd = (index: number) => {
+    const col = filtered[index]
+    if (!col || col.visible) return
+    onAdd(col.key)
+    // 방금 추가한 칼럼은 비활성이 되므로 다음 추가 가능한 칼럼으로 이동
+    const next = findAddable(index, 1)
+    const prev = findAddable(index, -1)
+    setActiveIndex(next !== index ? next : prev !== index ? prev : -1)
     inputRef.current?.focus()
   }
 
@@ -125,10 +126,7 @@ export function AddColumnMenu({ columns, onToggle, canRemove, onReset }: AddColu
         className={`add-column__trigger${open ? ' is-open' : ''}`}
         aria-label="칼럼 추가"
         aria-expanded={open}
-        onClick={() => {
-          if (!open) setOrder(columns.map((col) => col.key))
-          setOpen((prev) => !prev)
-        }}
+        onClick={() => setOpen((prev) => !prev)}
       >
         <PlusIcon />
       </button>
@@ -140,8 +138,7 @@ export function AddColumnMenu({ columns, onToggle, canRemove, onReset }: AddColu
             ref={menuRef}
             className="add-column__menu"
             role="listbox"
-            aria-multiselectable
-            aria-label="표시할 칼럼"
+            aria-label="추가 가능한 칼럼"
             style={{ top: position.top, left: position.left }}
           >
             <div className="add-column__search">
@@ -155,13 +152,13 @@ export function AddColumnMenu({ columns, onToggle, canRemove, onReset }: AddColu
                 onKeyDown={(event) => {
                   if (event.key === 'ArrowDown') {
                     event.preventDefault()
-                    setActiveIndex((i) => Math.min(i + 1, Math.max(filtered.length - 1, 0)))
+                    setActiveIndex((i) => findAddable(i, 1))
                   } else if (event.key === 'ArrowUp') {
                     event.preventDefault()
-                    setActiveIndex((i) => Math.max(i - 1, 0))
-                  } else if (event.key === 'Enter' && filtered[activeIndex]) {
+                    setActiveIndex((i) => findAddable(i, -1))
+                  } else if (event.key === 'Enter') {
                     event.preventDefault()
-                    handleToggle(filtered[activeIndex])
+                    handleAdd(activeIndex)
                   }
                 }}
               />
@@ -172,22 +169,20 @@ export function AddColumnMenu({ columns, onToggle, canRemove, onReset }: AddColu
               )}
               {filtered.map((col, index) => (
                 <li key={col.key}>
-                  <label
+                  <button
+                    type="button"
                     role="option"
-                    aria-selected={col.visible}
-                    aria-disabled={isLocked(col) || undefined}
-                    className={`add-column__item${index === activeIndex ? ' is-active' : ''}${isLocked(col) ? ' is-locked' : ''}`}
-                    onMouseEnter={() => setActiveIndex(index)}
+                    aria-selected={index === activeIndex}
+                    disabled={col.visible}
+                    title={col.visible ? '이미 표시 중인 칼럼' : undefined}
+                    className={`add-column__item${index === activeIndex ? ' is-active' : ''}${col.visible ? ' is-added' : ''}`}
+                    onMouseEnter={() => {
+                      if (!col.visible) setActiveIndex(index)
+                    }}
+                    onClick={() => handleAdd(index)}
                   >
-                    <span className="add-column__label">{col.label}</span>
-                    <input
-                      type="checkbox"
-                      tabIndex={-1}
-                      checked={col.visible}
-                      disabled={isLocked(col)}
-                      onChange={() => handleToggle(col)}
-                    />
-                  </label>
+                    {col.label}
+                  </button>
                 </li>
               ))}
             </ul>

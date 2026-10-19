@@ -39,22 +39,23 @@ export function visibleKeysFromHeaders(headers: HeaderState[]): ColumnKey[] {
   return headers[0] ? [headers[0].key] : []
 }
 
-/** 보이는 키 순서로 재배열하고 visible 플래그를 맞춘다. 나머지 필드는 유지. */
+/**
+ * visible 플래그를 맞추고, 보이는 칼럼끼리만 visibleKeys 순서로 재배열한다.
+ * 숨김 칼럼은 원래 자리를 유지 (숨겼다 다시 추가하면 같은 위치로 돌아옴). 나머지 필드는 유지.
+ */
 export function withVisibleOrder(
   headers: HeaderState[],
   visibleKeys: ColumnKey[],
 ): HeaderState[] {
   const byKey = new Map(headers.map((h) => [h.key, h] as const))
   const visibleSet = new Set(visibleKeys)
-  const visible: HeaderState[] = visibleKeys.flatMap((key) => {
-    const item = byKey.get(key)
-    if (!item) return []
-    return [{ ...item, visible: true }]
+  const ordered = visibleKeys.filter((key) => byKey.has(key))
+  let cursor = 0
+  const next: HeaderState[] = headers.map((h) => {
+    if (!visibleSet.has(h.key)) return { ...h, visible: false }
+    const item = byKey.get(ordered[cursor++])!
+    return { ...item, visible: true }
   })
-  const hidden: HeaderState[] = headers
-    .filter((h) => !visibleSet.has(h.key))
-    .map((h) => ({ ...h, visible: false }))
-  const next = [...visible, ...hidden]
   if (next.every((h) => !h.visible) && next[0]) {
     next[0] = { ...next[0], visible: true }
   }
