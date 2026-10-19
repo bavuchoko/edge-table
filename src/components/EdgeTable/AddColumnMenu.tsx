@@ -4,8 +4,11 @@ import type { ColumnDef, ColumnKey } from '../../types'
 import { PlusIcon, SearchIcon } from './icons'
 
 type AddColumnMenuProps = {
-  availableColumns: ColumnDef[]
-  onAdd: (columnKey: ColumnKey) => void
+  /** 전체 칼럼 (visible = 체크 여부) */
+  columns: ColumnDef[]
+  onToggle: (columnKey: ColumnKey) => void
+  /** false면 표시 중인 마지막 칼럼은 해제 불가 */
+  canRemove: boolean
   onReset?: () => void
 }
 
@@ -14,20 +17,28 @@ type MenuPosition = {
   left: number
 }
 
-export function AddColumnMenu({ availableColumns, onAdd, onReset }: AddColumnMenuProps) {
+export function AddColumnMenu({ columns, onToggle, canRemove, onReset }: AddColumnMenuProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   const [position, setPosition] = useState<MenuPosition | null>(null)
+  /** 토글 시 headers 순서(표시 → 숨김)가 바뀌어도 항목이 튀지 않도록, 열 때의 순서를 고정 */
+  const [order, setOrder] = useState<ColumnKey[]>([])
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  const ordered = useMemo(() => {
+    const rank = new Map(order.map((key, i) => [key, i] as const))
+    const rankOf = (key: ColumnKey) => rank.get(key) ?? order.length
+    return [...columns].sort((a, b) => rankOf(a.key) - rankOf(b.key))
+  }, [columns, order])
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return availableColumns
-    return availableColumns.filter((col) => col.label.toLowerCase().includes(q))
-  }, [availableColumns, query])
+    if (!q) return ordered
+    return ordered.filter((col) => col.label.toLowerCase().includes(q))
+  }, [ordered, query])
 
   const updatePosition = () => {
     const trigger = triggerRef.current
@@ -87,19 +98,17 @@ export function AddColumnMenu({ availableColumns, onAdd, onReset }: AddColumnMen
     }
   }, [open, query])
 
-  // 칼럼 추가 후 목록이 줄어들면 activeIndex를 범위 안으로 맞춤
-  useEffect(() => {
-    setActiveIndex((i) => Math.min(i, Math.max(filtered.length - 1, 0)))
-  }, [filtered.length])
-
   const closeMenu = () => {
     setOpen(false)
     setQuery('')
   }
 
-  // 여러 칼럼을 연달아 추가할 수 있도록 메뉴는 열어둔다 (외부 클릭/Esc로 닫힘)
-  const handleSelect = (columnKey: ColumnKey) => {
-    onAdd(columnKey)
+  const isLocked = (col: ColumnDef) => col.visible && !canRemove
+
+  // 여러 칼럼을 연달아 토글할 수 있도록 메뉴는 열어둔다 (외부 클릭/Esc로 닫힘)
+  const handleToggle = (col: ColumnDef) => {
+    if (isLocked(col)) return
+    onToggle(col.key)
     inputRef.current?.focus()
   }
 
@@ -116,7 +125,10 @@ export function AddColumnMenu({ availableColumns, onAdd, onReset }: AddColumnMen
         className={`add-column__trigger${open ? ' is-open' : ''}`}
         aria-label="칼럼 추가"
         aria-expanded={open}
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={() => {
+          if (!open) setOrder(columns.map((col) => col.key))
+          setOpen((prev) => !prev)
+        }}
       >
         <PlusIcon />
       </button>
@@ -128,7 +140,8 @@ export function AddColumnMenu({ availableColumns, onAdd, onReset }: AddColumnMen
             ref={menuRef}
             className="add-column__menu"
             role="listbox"
-            aria-label="추가 가능한 칼럼"
+            aria-multiselectable
+            aria-label="표시할 칼럼"
             style={{ top: position.top, left: position.left }}
           >
             <div className="add-column__search">
@@ -148,7 +161,7 @@ export function AddColumnMenu({ availableColumns, onAdd, onReset }: AddColumnMen
                     setActiveIndex((i) => Math.max(i - 1, 0))
                   } else if (event.key === 'Enter' && filtered[activeIndex]) {
                     event.preventDefault()
-                    handleSelect(filtered[activeIndex].key)
+                    handleToggle(filtered[activeIndex])
                   }
                 }}
               />
@@ -159,16 +172,22 @@ export function AddColumnMenu({ availableColumns, onAdd, onReset }: AddColumnMen
               )}
               {filtered.map((col, index) => (
                 <li key={col.key}>
-                  <button
-                    type="button"
+                  <label
                     role="option"
-                    aria-selected={index === activeIndex}
-                    className={`add-column__item${index === activeIndex ? ' is-active' : ''}`}
+                    aria-selected={col.visible}
+                    aria-disabled={isLocked(col) || undefined}
+                    className={`add-column__item${index === activeIndex ? ' is-active' : ''}${isLocked(col) ? ' is-locked' : ''}`}
                     onMouseEnter={() => setActiveIndex(index)}
-                    onClick={() => handleSelect(col.key)}
                   >
-                    {col.label}
-                  </button>
+                    <span className="add-column__label">{col.label}</span>
+                    <input
+                      type="checkbox"
+                      tabIndex={-1}
+                      checked={col.visible}
+                      disabled={isLocked(col)}
+                      onChange={() => handleToggle(col)}
+                    />
+                  </label>
                 </li>
               ))}
             </ul>

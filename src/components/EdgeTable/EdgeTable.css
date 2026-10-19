@@ -618,20 +618,43 @@
 }
 
 .add-column__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
+  box-sizing: border-box;
   padding: 7px 10px;
-  border: 0;
   border-radius: 4px;
-  background: transparent;
   color: #1f2329;
-  text-align: left;
-  font: inherit;
   cursor: pointer;
+  user-select: none;
 }
 
 .add-column__item.is-active,
 .add-column__item:hover {
   background: #e8f2ff;
+}
+
+.add-column__item.is-locked {
+  color: #9ea3af;
+  cursor: default;
+}
+
+.add-column__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.add-column__item input[type='checkbox'] {
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color: #3574f0;
+  cursor: inherit;
 }
 
 .add-column__empty {

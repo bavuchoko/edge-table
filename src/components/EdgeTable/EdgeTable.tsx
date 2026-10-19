@@ -253,20 +253,6 @@ export function EdgeTable<T>({
     padding: 0,
   }
 
-  const availableColumns = useMemo(
-    () =>
-      headers
-        .filter((col) => !col.visible)
-        .map((col) => {
-          if (hasFixedWidth(col.width)) {
-            return { ...col, width: clampColumnWidth(col.width) }
-          }
-          const { width: _w, ...rest } = col
-          return rest
-        }),
-    [headers],
-  )
-
   const freezeUntilIndex = resolveFreezeUntilIndex(freezeUntilKey, visibleColumnKeys)
 
   useEffect(() => {
@@ -466,6 +452,11 @@ export function EdgeTable<T>({
     commitHeaderKeys(visibleColumnKeys.filter((key) => key !== columnKey))
   }
 
+  const toggleColumn = (columnKey: ColumnKey) => {
+    if (visibleColumnKeys.includes(columnKey)) removeColumn(columnKey)
+    else addColumn(columnKey)
+  }
+
   const resetHeaders = () => {
     const next = applyHeaderDefaults(headers)
     setHeaders(next)
@@ -592,8 +583,9 @@ export function EdgeTable<T>({
 
                 <th className="edge-table__th edge-table__th--add" scope="col">
                   <AddColumnMenu
-                    availableColumns={availableColumns}
-                    onAdd={addColumn}
+                    columns={headers}
+                    onToggle={toggleColumn}
+                    canRemove={visibleColumnKeys.length > 1}
                     onReset={onHeaderReset ? resetHeaders : undefined}
                   />
                 </th>
