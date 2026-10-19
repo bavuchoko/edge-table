@@ -87,14 +87,20 @@ export function AddColumnMenu({ availableColumns, onAdd, onReset }: AddColumnMen
     }
   }, [open, query])
 
+  // 칼럼 추가 후 목록이 줄어들면 activeIndex를 범위 안으로 맞춤
+  useEffect(() => {
+    setActiveIndex((i) => Math.min(i, Math.max(filtered.length - 1, 0)))
+  }, [filtered.length])
+
   const closeMenu = () => {
     setOpen(false)
     setQuery('')
   }
 
+  // 여러 칼럼을 연달아 추가할 수 있도록 메뉴는 열어둔다 (외부 클릭/Esc로 닫힘)
   const handleSelect = (columnKey: ColumnKey) => {
     onAdd(columnKey)
-    closeMenu()
+    inputRef.current?.focus()
   }
 
   const handleReset = () => {
